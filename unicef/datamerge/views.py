@@ -103,14 +103,13 @@ def UpdateEncuesta(request):
 @csrf_exempt
 @require_POST
 def UpdateEntradas(request):
-    """This method is used to update the number of responses of an Encuesta object.
-        Sends a GET request with the url of the Encuesta object to LimeSurvey API and retrives the number of responses.
+    """This method is used to update the number of responses for all Encuesta objects stored in the database.
+        Sends a POST request with the sid, usr, and pass parameters to the LimeSurvey API for each Encuesta object and retrieves the number of responses.
     Args:
-        request (_type_): _description_
+        request (HttpRequest): The HTTP request containing the usr and pass parameters.
 
     Returns:
-        _type_: _description_
-
+        JsonResponse: A JSON response containing the updated data or an error message.
     """
     usr = request.POST.get("usr")
     password = request.POST.get("pass")
