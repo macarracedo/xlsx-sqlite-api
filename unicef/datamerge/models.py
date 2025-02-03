@@ -1,29 +1,16 @@
 from django.db import models
-from enum import Enum
 
-# Create your models here.
-class TipoEncuesta(Enum):
-    PRM = 'primaria'
-    SEC = 'secundaria'
-    PRO = 'profesorado'
-
-class Colegio(models.Model):
-    nombre = models.CharField(max_length=100, unique=True)
-    municipio = models.CharField(max_length=100)
-    provincia = models.CharField(max_length=100)
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.nombre
 
 class Encuesta(models.Model):
-    url = models.URLField(unique=True)
-    tipo_encuesta = models.CharField(max_length=20, choices=[(tag, tag.value) for tag in TipoEncuesta])
-    num_respuestas = models.IntegerField()  # Numero de respuestas completadas
-    colegio = models.ManyToManyField(Colegio, related_name='encuestas')
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
+    sid = models.CharField(max_length=20)
+    titulo = models.CharField(max_length=100)
+    fecha_inicio = models.DateTimeField(null=True, blank=True)
+    fecha_fin = models.DateTimeField(null=True, blank=True)
+    activa = models.CharField(max_length=1)
+    url = models.URLField(max_length=200)
+    encuestas_cubiertas = models.IntegerField()
+    encuestas_incompletas = models.IntegerField()
+    encuestas_totales = models.IntegerField()
 
     def __str__(self):
         return self.url
