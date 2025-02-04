@@ -9,12 +9,13 @@ from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
     EncuestaSerializer,
+    ColegioSerializer,
 )
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
-from unicef.datamerge.models import Encuesta
+from unicef.datamerge.models import Encuesta, Colegio
 
 API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
 
@@ -114,7 +115,52 @@ class EncuestaViewSet(viewsets.ModelViewSet):
             )
 
         return JsonResponse(data_externa)
+    
+class ColegioViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows Colegios to be created, viewed or edited.
+    """
 
+    queryset = Colegio.objects.all().order_by("cid")
+    serializer_class = ColegioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        """This method is used to create a new Colegio object.
+        Args:
+            request (_type_): _description_
+
+        Returns:
+            _type_: _description_
+
+        """
+        cid = request.POST.get("cid")
+        nombre = request.POST.get("nombre")
+        comunidad_autonoma = request.POST.get("comunidad_autonoma")
+        telefono = request.POST.get("telefono")
+        email = request.POST.get("email")
+        if not all([cid, nombre, comunidad_autonoma, telefono, email]):
+            return Response(
+                {"detail": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        payload = {"nombre": nombre, "comunidad_autonoma": comunidad_autonoma, "telefono": telefono, "email": email}
+        try:
+            # Se realiza la petición POST al servicio externo
+            Colegio.objects.update_or_create(
+                cid=cid,
+                defaults={
+                    "nombre": nombre,
+                    "comunidad_autonoma": comunidad_autonoma,
+                    "telefono": telefono,
+                    "email": email,
+                },
+            )
+        except requests.RequestException as ex:
+            return JsonResponse(
+                {"error": "Error al actualizar o crear el objeto Colegio", "detalle": str(ex)},
+                status=500,
+            )
+        return JsonResponse(payload)
 
 @csrf_exempt
 @require_POST

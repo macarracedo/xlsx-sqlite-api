@@ -1,5 +1,5 @@
 from django.contrib.auth.models import Group, User
-from unicef.datamerge.models import Encuesta
+from unicef.datamerge.models import Encuesta, Colegio
 from rest_framework import serializers
 
 
@@ -29,4 +29,15 @@ class EncuestaSerializer(serializers.HyperlinkedModelSerializer):
             "encuestas_cubiertas",
             "encuestas_incompletas",
             "encuestas_totales",
+        ]
+
+class ColegioSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = Colegio
+        fields = [
+            "cid",
+            "nombre",
+            "comunidad_autonoma",
+            "telefono",
+            "email",
         ]
