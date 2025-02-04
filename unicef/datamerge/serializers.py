@@ -21,7 +21,7 @@ class EncuestaSerializer(serializers.HyperlinkedModelSerializer):
         model = Encuesta
         fields = [
             "sid",
-            "titulo_encuesta",
+            "titulo",
             "fecha_inicio",
             "fecha_fin",
             "activa",
