@@ -3,10 +3,10 @@ from django.shortcuts import render
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets, status
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from rest_framework.parsers import JSONParser
 from rest_framework.decorators import action
-from django.http import JsonResponse, HttpRequest
+from django.http import JsonResponse, HttpRequest, HttpResponse
 from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
@@ -18,21 +18,26 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
 from unicef.datamerge.models import Encuesta, Colegio
-from django.db.models import Sum
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
 from django.db import IntegrityError
 import logging
+import csv
+import os
+from github import Github
 
 API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
 INTERNAL_LS_USER = "ccii"
 INTERNAL_LS_PASS = "ccii2024"
 logging.basicConfig(level=logging.DEBUG)
 
+
 class MockRequest(HttpRequest):
     def __init__(self, data):
         super().__init__()
-        self.method = 'POST'
+        self.method = "POST"
         self.POST = data
-        
+
+
 def update_encuesta_by_sid(sid):
     if not Encuesta.objects.filter(sid=sid).exists():
         logging.debug(f"update_encuesta_by_sid. sid: {sid}")
@@ -40,10 +45,12 @@ def update_encuesta_by_sid(sid):
             request_data = {
                 "sid": sid,
                 "usr": INTERNAL_LS_USER,
-                "pass": INTERNAL_LS_PASS
+                "pass": INTERNAL_LS_PASS,
             }
             mock_request = MockRequest(request_data)
-            logging.debug(f"update_encuesta_by_sid. mock_request: {mock_request.__dict__}")
+            logging.debug(
+                f"update_encuesta_by_sid. mock_request: {mock_request.__dict__}"
+            )
             UpdateEncuesta(mock_request)
             encuesta = Encuesta.objects.get(sid=sid) if sid else None
             logging.debug(f"update_encuesta_by_sid. encuesta: {encuesta}")
@@ -51,6 +58,7 @@ def update_encuesta_by_sid(sid):
         except Exception as e:
             raise Exception(f"Error updating Encuesta with SID: {sid}, error: {str(e)}")
     return Encuesta.objects.get(sid=sid)
+
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -147,7 +155,7 @@ class EncuestaViewSet(viewsets.ModelViewSet):
             )
 
         return JsonResponse(data_externa)
-    
+
     @action(detail=False, methods=["post"], parser_classes=[JSONParser])
     def bulk_create(self, request, *args, **kwargs):
         """This method is used to create multiple Encuesta objects.
@@ -204,6 +212,7 @@ class EncuestaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(created_encuestas, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+
 class ColegioViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Colegios to be created, viewed or edited.
@@ -243,7 +252,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
             "sec_sid": sec_sid,
             "pro_sid": pro_sid,
         }
-        
+
         pri_encuesta = update_encuesta_by_sid(pri_sid) if pri_sid else None
         sec_encuesta = update_encuesta_by_sid(sec_sid) if sec_sid else None
         pro_encuesta = update_encuesta_by_sid(pro_sid) if pro_sid else None
@@ -323,17 +332,14 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 created_colegios.append(colegio)
             except IntegrityError as e:
                 return JsonResponse(
-                    {
-                        "detalle": "Foreign key constraint failed",
-                        "error": str(e)
-                    },
+                    {"detalle": "Foreign key constraint failed", "error": str(e)},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             except Exception as e:
                 return JsonResponse(
                     {
-                        "detalle": "Error al actualizar o crear el objeto Colegio", 
-                        "error": str(e)
+                        "detalle": "Error al actualizar o crear el objeto Colegio",
+                        "error": str(e),
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -480,118 +486,101 @@ def UpdateEntradas(request):
 
     return JsonResponse(data_externa)
 
-class DashboardViewSet(viewsets.ViewSet):
-    """
-    API endpoint that allows the dashboard to be viewed.
-    """
-
-    def list(self, request):
-        """This method is used to list the data of the dashboard.
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
-
-        """
-        # Get the number of Encuestas
-        num_encuestas = Encuesta.objects.count()
-        # Get the number of Colegios
-        num_colegios = Colegio.objects.count()
-        # Get the number of responses
-        num_responses = Encuesta.objects.aggregate(
-            total=Sum("encuestas_totales")
-        )["total"]
-        # Get the number of responses covered
-        num_responses_covered = Encuesta.objects.aggregate(
-            total=Sum("encuestas_cubiertas")
-        )["total"]
-        # Get the number of responses incomplete
-        num_responses_incomplete = Encuesta.objects.aggregate(
-            total=Sum("encuestas_incompletas")
-        )["total"]
-        # Get the number of responses not covered
-        num_responses_not_covered = num_responses - num_responses_covered
-        # Get the number of responses complete
-        num_responses_complete = num_responses_covered - num_responses_incomplete
-        # Get the number of responses per Colegio
-        responses_per_colegio = Colegio.objects.annotate(
-            num_responses=Sum("encuestas_totales")
-        ).values("nombre", "num_responses")
-        # Get the number of responses per Encuesta
-        responses_per_encuesta = Encuesta.objects.values(
-            "titulo", "encuestas_totales", "encuestas_cubiertas", "encuestas_incompletas"
-        )
-        # Get the number of responses per Comunidad Autonoma
-        responses_per_comunidad_autonoma = Colegio.objects.values(
-            "comunidad_autonoma"
-        ).annotate(
-            num_responses=Sum("encuestas_totales"),
-            num_responses_covered=Sum("encuestas_cubiertas"),
-            num_responses_incomplete=Sum("encuestas_incompletas"),
-        )
-
-        return Response(
-            {
-                "num_encuestas": num_encuestas,
-                "num_colegios": num_colegios,
-                "num_responses": num_responses,
-                "num_responses_covered": num_responses_covered,
-                "num_responses_incomplete": num_responses_incomplete,
-                "num_responses_not_covered": num_responses_not_covered,
-                "num_responses_complete": num_responses_complete,
-                "responses_per_colegio": responses_per_colegio,
-                "responses_per_encuesta": responses_per_encuesta,
-                "responses_per_comunidad_autonoma": responses_per_comunidad_autonoma,
-            }
-        )
-                
-
-@csrf_exempt
-@require_POST
-def PostData(request):
-    """_summary_
-    This method post csv data to github repository.
+def push_to_gh_repo(csv_data):
+    """This method pushes csv data to a GitHub repository.
 
     Args:
-        request (_type_): _description_
+        csv_data (str): The CSV data to be pushed.
     """
+    # GitHub repository and file details
+    repo_name = "macarracedo/xlsx-sqlite-api"
+    file_path = "data/colegios_data.csv"
+    commit_message = "[BOT] Update colegios data CSV"
 
-    # Get the data from the request
-    data = request.POST.get("data")
-    # Get the file name
-    file_name = request.POST.get("file_name")
-    # Get the repository name
-    repository_name = request.POST.get("repository_name")
-    # Get the branch name
-    branch_name = request.POST.get("branch_name")
-    # Get the access token
-    access_token = request.POST.get("access_token")
-    # Get the commit message
-    commit_message = request.POST.get("commit_message")
-    # Get the user name
-    user_name = request.POST.get("user_name")
-    # Get the email
-    email = request.POST.get("email")
+    # GitHub authentication
+    gh_token = os.getenv("GITHUB_TOKEN")
+    if not gh_token:
+        raise Exception("GitHub token not found in environment variables")
 
-    # Create the url
-    url = f"https://api.github.com/repos/{user_name}/{repository_name}/contents/{file_name}"
-    # Create the headers
-    headers = {
-        "Authorization": f"token {access_token}",
-        "Content-Type": "application/json",
-    }
-    # Create the data
-    data = {
-        "message": commit_message,
-        "content": data,
-        "branch": branch_name,
-        "committer": {
-            "name": user_name,
-            "email": email,
-        },
-    }
-    # Make the request
-    response = requests.put(url, headers=headers, data=data)
-    # Return the response
-    return JsonResponse(response.json())
+    g = Github(gh_token)
+    repo = g.get_repo(repo_name)
+
+    try:
+        # Get the file if it exists
+        contents = repo.get_contents(file_path)
+        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
+    except Exception as e:
+        # If the file does not exist, create it
+        repo.create_file(file_path, commit_message, csv_data)
+
+@csrf_exempt
+@require_GET
+def generate_csv(request):
+    """Generate a CSV file from data stored in the database."""
+    # Query the database to get the required data
+    colegios = (
+        Colegio.objects.values("comunidad_autonoma")
+        .annotate(
+            encuestas_totales=Sum("pri_sid__encuestas_totales")
+            + Sum("sec_sid__encuestas_totales")
+            + Sum("pro_sid__encuestas_totales"),
+            encuestas_cubiertas=Sum("pri_sid__encuestas_cubiertas")
+            + Sum("sec_sid__encuestas_cubiertas")
+            + Sum("pro_sid__encuestas_cubiertas"),
+            encuestas_incompletas=Sum("pri_sid__encuestas_incompletas")
+            + Sum("sec_sid__encuestas_incompletas")
+            + Sum("pro_sid__encuestas_incompletas"),
+            total_centros=Count("id"),
+        )
+        .annotate(
+            porcentaje=ExpressionWrapper(
+                F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                output_field=FloatField(),
+            )
+        )
+        .values(
+            "comunidad_autonoma",
+            "encuestas_totales",
+            "encuestas_cubiertas",
+            "encuestas_incompletas",
+            "porcentaje",
+            "total_centros",
+        )
+    )
+
+    
+    # Create the HttpResponse object with the appropriate CSV header.
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="colegios_data.csv"'
+
+    writer = csv.writer(response)
+    # Write the header row
+    writer.writerow(
+        [
+            "comunidad",
+            "encuestas_totales",
+            "encuestas_cubiertas",
+            "encuestas_incompletas",
+            "porcentaje",
+            "total_centros",
+        ]
+    )
+
+    # Write data rows
+    for colegio in colegios:
+        writer.writerow(
+            [
+                colegio["comunidad_autonoma"],
+                colegio["encuestas_totales"],
+                colegio["encuestas_cubiertas"],
+                colegio["encuestas_incompletas"],
+                colegio["porcentaje"],
+                colegio["total_centros"],
+            ]
+        )
+    # Upload csv_data to github
+    csv_data =  response.getvalue()
+    logging.debug(f"generate_csv. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data)
+
+    return None

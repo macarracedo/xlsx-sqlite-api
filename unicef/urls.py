@@ -32,4 +32,5 @@ urlpatterns = [
     path("", include(router.urls)),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("update-encuesta/", views.UpdateEncuesta, name="update-encuesta"),
+    path("generate_csv/", views.generate_csv, name="generate_csv"),
 ]
