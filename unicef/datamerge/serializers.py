@@ -40,4 +40,7 @@ class ColegioSerializer(serializers.HyperlinkedModelSerializer):
             "comunidad_autonoma",
             "telefono",
             "email",
+            "pri_sid",
+            "sec_sid",
+            "pro_sid",
         ]
