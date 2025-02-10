@@ -1,0 +1,19 @@
+name: Trigger on File Change
+
+on:
+  push:
+    paths:
+      - 'unicef/datamerge/xlsx/'  # Replace with your target file path
+
+jobs:
+  file-changed-action:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Execute custom command
+        run: |
+          echo "File was modified! Running subsequent tasks..."
+          cd app/
+          docker-compose up --build -d
