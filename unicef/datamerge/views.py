@@ -13,6 +13,7 @@ from unicef.datamerge.serializers import (
     EncuestaSerializer,
     ColegioSerializer,
 )
+from unicef.datamerge.utils import excel2_to_json
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -280,6 +281,30 @@ class ColegioViewSet(viewsets.ModelViewSet):
             )
         return JsonResponse(payload)
 
+    @action(detail=False, methods=["post"], parser_classes=[JSONParser])
+    def bulk_create_xlsx(self, request, *args, **kwargs):
+        """
+        Endpoint para recibir un archivo XLSX, procesarlo y devolver un JSON con información de colegios.
+        Protección CSRF habilitada.
+
+        Args:
+            request (HttpRequest): La petición HTTP.
+
+        Returns:
+            JsonResponse: Una respuesta JSON con la información de los colegios.
+        """
+        if request.method == 'POST' and request.FILES.get('archivo_xlsx'):
+            archivo_xlsx = request.FILES['archivo_xlsx']
+
+            try:
+                colegios = excel2_to_json(archivo_xlsx)
+                return JsonResponse({"colegios": colegios}, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+
+            except ValueError as e:
+                return JsonResponse({"error": str(e)}, status=400, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+        else:
+            return JsonResponse({"error": "Se requiere un archivo XLSX en la petición POST."}, status=400, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
+    
     @action(detail=False, methods=["post"], parser_classes=[JSONParser])
     def bulk_create(self, request, *args, **kwargs):
         """This method is used to create multiple Colegio objects.
