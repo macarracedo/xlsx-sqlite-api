@@ -25,11 +25,15 @@ import logging
 import csv
 import os
 from github import Github
+from dotenv import load_dotenv
 
-API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
-INTERNAL_LS_USER = "ccii"
-INTERNAL_LS_PASS = "ccii2024"
+API_LIMESURVEY = "#########################################################"
+INTERNAL_LS_USER = "####"
+INTERNAL_LS_PASS = "########"
+GITHUB_TOKEN= '#####################################'
 logging.basicConfig(level=logging.DEBUG)
+# Cargar las variables de entorno desde el archivo .env
+load_dotenv()
 
 
 class MockRequest(HttpRequest):
@@ -522,12 +526,8 @@ def push_to_gh_repo(csv_data):
     file_path = "data/colegios_data.csv"
     commit_message = "[BOT] Update colegios data CSV"
 
-    # GitHub authentication
-    gh_token = os.getenv("GITHUB_TOKEN")
-    if not gh_token:
-        raise Exception("GitHub token not found in environment variables")
 
-    g = Github(gh_token)
+    g = Github(GITHUB_TOKEN)
     repo = g.get_repo(repo_name)
 
     try:
