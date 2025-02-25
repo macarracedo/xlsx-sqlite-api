@@ -194,68 +194,6 @@ class ColegioViewSet(viewsets.ModelViewSet):
         serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-@csrf_exempt
-@require_POST
-def UpdateEncuesta(request):
-    """This method is used to update the number of responses of an Encuesta object.
-        Sends a GET request with the url of the Encuesta object to LimeSurvey API and retrieves the number of responses.
-    Args:
-        request (HttpRequest): The HTTP request containing the sid, usr, and pass parameters.
-
-    Returns:
-        JsonResponse: A JSON response containing the updated data or an error message.
-    """
-    logging.debug(f"UpdateEncuesta. request: {request.__dict__}")
-    sid = request.POST.get("sid")
-    usr = request.POST.get("usr")
-    password = request.POST.get("pass")
-    logging.debug(f"UpdateEncuesta. sid: {sid}")
-    if not all([sid, usr, password]):
-        return JsonResponse(
-            {"detail": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-    payload = {"sid": sid, "usr": usr, "pass": password}
-
-    try:
-        # Se realiza la petición POST al servicio externo
-        response = requests.post(API_LIMESURVEY, data=payload, verify=False)
-        logging.debug(f"UpdateEncuesta. response: {response}")
-        response.raise_for_status()  # Lanza excepción en caso de error HTTP
-        data_externa = response.json()  # Se decodifica la respuesta JSON
-        logging.debug(f"UpdateEncuesta. data_externa:{data_externa}")
-
-        # Fetch the Encuesta object
-        encuesta = Encuesta.objects.get(sid=sid)
-
-        # Update or create the daily result
-        now = timezone.now()
-        EncuestaResult.objects.update_or_create(
-            encuesta=encuesta,
-            date=now,
-            defaults={
-                "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
-                "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
-                "encuestas_totales": data_externa.get("Encuesta", {}).get("Encuestas totales"),
-            }
-        )
-
-    except requests.RequestException as ex:
-        return JsonResponse(
-            {"error": "Error en la petición al servicio externo", "detalle": str(ex)},
-            status=500,
-        )
-    except ValueError as ex:
-        return JsonResponse(
-            {"error": "Respuesta JSON inválida", "detalle": str(ex)}, status=500
-        )
-    except Encuesta.DoesNotExist:
-        return JsonResponse(
-            {"error": "Encuesta not found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
-    return JsonResponse(data_externa)
-
 
 def push_to_gh_repo(csv_data):
     """This method pushes csv data to a GitHub repository.
