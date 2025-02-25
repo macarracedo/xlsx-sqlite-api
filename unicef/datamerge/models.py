@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.utils import timezone
 
 class Colegio(models.Model):
     cid = models.CharField(max_length=30)  # L1A001 - Primaria
@@ -22,10 +22,20 @@ class Encuesta(models.Model):
     fecha_fin = models.DateTimeField(null=True, blank=True)
     activa = models.CharField(max_length=1)
     url = models.URLField(max_length=200)
-    encuestas_cubiertas = models.IntegerField()
-    encuestas_incompletas = models.IntegerField()
-    encuestas_totales = models.IntegerField()
     related_encuestas = models.ManyToManyField('self', blank=True)
 
     def __str__(self):
-        return self.url
+        return f"{self.titulo} ({self.sid})"
+
+class EncuestaResult(models.Model):
+    encuesta = models.ForeignKey(Encuesta, on_delete=models.CASCADE, related_name='results')
+    date = models.DateField(default=timezone.now)
+    encuestas_cubiertas = models.IntegerField()
+    encuestas_incompletas = models.IntegerField()
+    encuestas_totales = models.IntegerField()
+
+    class Meta:
+        unique_together = ('encuesta', 'date')
+
+    def __str__(self):
+        return f"{self.encuesta.sid} - {self.date}"
