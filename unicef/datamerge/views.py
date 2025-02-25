@@ -229,10 +229,10 @@ def UpdateEncuesta(request):
         encuesta = Encuesta.objects.get(sid=sid)
 
         # Update or create the daily result
-        today = timezone.now().date()
+        now = timezone.now()
         EncuestaResult.objects.update_or_create(
             encuesta=encuesta,
-            date=today,
+            date=now,
             defaults={
                 "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
                 "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
