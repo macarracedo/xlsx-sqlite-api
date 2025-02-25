@@ -20,6 +20,7 @@ from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
 from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
 import logging
 import csv
+import re
 from io import StringIO
 from github import Github
 from dotenv import load_dotenv
@@ -161,6 +162,8 @@ class ColegioViewSet(viewsets.ModelViewSet):
 
             cid, nivel = id_de_centro.split(" - ")
 
+            # remove all letter P, D and S contained in the string
+            cid = re.sub(r'[PDS]', '', cid)
             if not all([cid, nombre, comunidad_autonoma, ssid, url, tipologia]):
                 return Response(
                     {"detail": "Missing parameters for one or more colegios"},
@@ -168,27 +171,43 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 )
 
             # Check if Colegio already exists
-            if Colegio.objects.filter(cid=cid).exists():
+            # if Colegio.objects.filter(cid=cid).exists():
+            #    continue
+
+            try:
+                # Create or update Encuesta. Also gets its results from LimeSurvey
+                # Check SIDs exist in database, if not, run UpdateEncuesta
+                encuesta = update_encuesta_by_sid(ssid) if ssid else None
+            except Exception as e:
+                logging.error(f"Error updating encuesta for SSID {ssid}: {e}")
                 continue
 
-            # Create or update Encuesta. Alse gets its results from LimeSurvey
-            # Check SIDs exist in database, if not, run UpdateEncuesta
-            encuesta = update_encuesta_by_sid(ssid) if ssid else None
-
-            # Create Colegio
-            colegio, created = Colegio.objects.update_or_create(
-                cid=cid,
-                defaults={
-                    "nombre": nombre,
-                    "comunidad_autonoma": comunidad_autonoma,
-                    "telefono": "",
-                    "email": "",
-                    "pri_sid": encuesta if "Primaria" in nivel else None,
-                    "sec_sid": encuesta if "Secundaria" in nivel else None,
-                    "pro_sid": encuesta if "Profesorado" in nivel else None,
-                },
-            )
-            logging.debug(f"bulk_create_csv. colegio: {colegio}")
+            # Create or update Colegio
+            try:
+                colegio = Colegio.objects.get(cid=cid)
+                colegio.nombre = nombre
+                colegio.comunidad_autonoma = comunidad_autonoma
+                colegio.telefono = colegio.telefono or ""
+                colegio.email = colegio.email or ""
+                colegio.pri_sid = encuesta if "Primaria" in nivel else colegio.pri_sid
+                colegio.sec_sid = encuesta if "Secundaria" in nivel else colegio.sec_sid
+                colegio.pro_sid = encuesta if "Profesorado" in nivel else colegio.pro_sid
+                colegio.save()
+                created = False
+            except Colegio.DoesNotExist:
+                colegio, created = Colegio.objects.update_or_create(
+                    cid=cid,
+                    defaults={
+                        "nombre": nombre,
+                        "comunidad_autonoma": comunidad_autonoma,
+                        "telefono": "",
+                        "email": "",
+                        "pri_sid": encuesta if "Primaria" in nivel else None,
+                        "sec_sid": encuesta if "Secundaria" in nivel else None,
+                        "pro_sid": encuesta if "Profesorado" in nivel else None,
+                    },
+                )
+            logging.debug(f"bulk_create_csv. colegio {colegio} created")
             created_colegios.append(colegio)
 
         serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})

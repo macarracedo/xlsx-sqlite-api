@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
 INTERNAL_LS_USER = "ccii"
 INTERNAL_LS_PASS = "ccii2024"
-GITHUB_TOKEN= '#####################################'
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -24,10 +23,8 @@ def update_encuesta_by_sid(sid):
     try:
         # Se realiza la petición POST al servicio externo
         response = requests.post(API_LIMESURVEY, data=payload, verify=False)
-        logging.debug(f"update_encuesta_by_sid. response: {response}")
         response.raise_for_status()  # Lanza excepción en caso de error HTTP
         data_externa = response.json()  # Se decodifica la respuesta JSON
-        logging.debug(f"update_encuesta_by_sid. data_externa:{data_externa}")
 
         # Create or update the Encuesta object
         encuesta, created = Encuesta.objects.update_or_create(
@@ -52,7 +49,7 @@ def update_encuesta_by_sid(sid):
                 "encuestas_totales": data_externa["Encuesta"]["Encuestas totales"],
             }
         )
-
+        logging.debug(f"update_encuesta_by_sid. encuesta with sid {encuesta.sid} updated")
         return encuesta
 
     except requests.RequestException as ex:
