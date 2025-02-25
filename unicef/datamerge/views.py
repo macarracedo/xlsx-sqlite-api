@@ -1,12 +1,10 @@
 import requests
-from django.shortcuts import render
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets, status, views
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
-from rest_framework.parsers import JSONParser
 from rest_framework.decorators import action
-from django.http import JsonResponse, HttpRequest, HttpResponse
+from django.http import JsonResponse, HttpResponse
 from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
@@ -16,15 +14,12 @@ from unicef.datamerge.serializers import (
     FileUploadSerializer,
 )
 from unicef.datamerge.utils import update_encuesta_by_sid
-from rest_framework.parsers import MultiPartParser, FormParser, FileUploadParser
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
-from openpyxl import load_workbook
 from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
 from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
-from django.db import IntegrityError
 import logging
 import csv
-import os
 from io import StringIO
 from github import Github
 from dotenv import load_dotenv
