@@ -6,9 +6,10 @@ from unicef.datamerge.utils import update_encuesta_by_sid
 import requests
 import logging
 
-API_LIMESURVEY = "************"
-INTERNAL_LS_USER = "****"
-INTERNAL_LS_PASS = "****"
+API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
+INTERNAL_LS_USER = "ccii"
+INTERNAL_LS_PASS = "ccii2024"
+
 logging.basicConfig(level=logging.DEBUG)
 
 class Command(BaseCommand):

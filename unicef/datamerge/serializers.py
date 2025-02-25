@@ -55,3 +55,5 @@ class ColegioSerializer(serializers.HyperlinkedModelSerializer):
             "sec_sid",
             "pro_sid",
         ]
+class FileUploadSerializer(serializers.Serializer):
+    cocina_csv = serializers.FileField()

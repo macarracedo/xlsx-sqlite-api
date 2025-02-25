@@ -1,7 +1,7 @@
 import requests
 from django.shortcuts import render
 from django.contrib.auth.models import Group, User
-from rest_framework import permissions, viewsets, status
+from rest_framework import permissions, viewsets, status, views
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 from rest_framework.parsers import JSONParser
@@ -13,10 +13,10 @@ from unicef.datamerge.serializers import (
     EncuestaSerializer,
     EncuestaResult,
     ColegioSerializer,
+    FileUploadSerializer,
 )
-from unicef.datamerge.utils import excel2_to_json, update_encuesta_by_sid
-from rest_framework.views import APIView
-from rest_framework.parsers import MultiPartParser, FormParser
+from unicef.datamerge.utils import update_encuesta_by_sid
+from rest_framework.parsers import MultiPartParser, FormParser, FileUploadParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
 from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
@@ -25,6 +25,7 @@ from django.db import IntegrityError
 import logging
 import csv
 import os
+from io import StringIO
 from github import Github
 from dotenv import load_dotenv
 from django.utils import timezone
@@ -36,9 +37,6 @@ GITHUB_TOKEN= '#####################################'
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
-
-
-
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -68,129 +66,6 @@ class EncuestaViewSet(viewsets.ModelViewSet):
     queryset = Encuesta.objects.all().order_by("sid")
     serializer_class = EncuestaSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-    def update(self, request, *args, **kwargs):
-        """This method is used to update the number of responses of an Encuesta object.
-        Sends a GET request with the url of the Encuesta object to LimeSurvey API and retrives the number of responses.
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
-
-        """
-        instance = self.get_object()
-        sid = instance.sid
-        usr = request.POST.get("usr")
-        password = request.POST.get("pass")
-
-        if not all([sid, usr, password]):
-            return Response(
-                {"detail": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        payload = {"sid": sid, "usr": usr, "pass": password}
-
-        try:
-            # Se realiza la petición POST al servicio externo
-            response = requests.post(API_LIMESURVEY, data=payload, verify=False)
-            response.raise_for_status()  # Lanza excepción en caso de error HTTP
-            data_externa = response.json()  # Se decodifica la respuesta JSON
-            logging.debug("Encuesta. update. data_externa:", data_externa)
-            # Aquí se puede actualizar la base de datos local utilizando data_externa
-            # Por ejemplo, se podría actualizar o crear un objeto Survey:
-            Encuesta.objects.update_or_create(
-                sid=data_externa.get("Encuesta", {}).get("SID"),
-                defaults={
-                    "titulo": data_externa.get("Encuesta", {}).get("Titulo encuesta"),
-                    "activa": data_externa.get("Encuesta", {}).get("Activa"),
-                    "url": data_externa.get("Encuesta", {}).get("Url"),
-                    "fecha_inicio": data_externa.get("Encuesta", {}).get(
-                        "Fecha inicio"
-                    ),
-                    "fecha_fin": data_externa.get("Encuesta", {}).get("Fecha fin"),
-                    "encuestas_cubiertas": data_externa.get("Encuesta", {}).get(
-                        "Encuestas cubiertas"
-                    ),
-                    "encuestas_incompletas": data_externa.get("Encuesta", {}).get(
-                        "Encuestas incompletas"
-                    ),
-                    "encuestas_totales": data_externa.get("Encuesta", {}).get(
-                        "Encuestas totales"
-                    ),
-                    # Otros campos según sea necesario
-                },
-            )
-        except requests.RequestException as ex:
-            return JsonResponse(
-                {
-                    "error": "Error en la petición al servicio externo",
-                    "detalle": str(ex),
-                },
-                status=500,
-            )
-        except ValueError as ex:
-            return JsonResponse(
-                {"error": "Respuesta JSON inválida", "detalle": str(ex)}, status=500
-            )
-
-        return JsonResponse(data_externa)
-
-    @action(detail=False, methods=["post"], parser_classes=[JSONParser])
-    def bulk_create(self, request, *args, **kwargs):
-        """This method is used to create multiple Encuesta objects.
-        Args:
-            request (_type_): _description_
-
-        Returns:
-            _type_: _description_
-
-        """
-        encuestas = request.data.get("encuestas", [])
-        if not encuestas:
-            return Response(
-                {"detail": "No encuestas provided"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        created_encuestas = []
-        for encuesta_data in encuestas:
-            sid = encuesta_data.get("sid")
-            titulo = encuesta_data.get("titulo")
-            activa = encuesta_data.get("activa")
-            url = encuesta_data.get("url")
-            fecha_inicio = encuesta_data.get("fecha_inicio")
-            fecha_fin = encuesta_data.get("fecha_fin")
-            encuestas_cubiertas = encuesta_data.get("encuestas_cubiertas")
-            encuestas_incompletas = encuesta_data.get("encuestas_incompletas")
-            encuestas_totales = encuesta_data.get("encuestas_totales")
-            if not all([sid, titulo, activa]):
-                return Response(
-                    {"detail": "Missing parameters for one or more encuestas"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            try:
-                encuesta, created = Encuesta.objects.update_or_create(
-                    sid=sid,
-                    defaults={
-                        "titulo": titulo,
-                        "activa": activa,
-                        "url": url,
-                        "fecha_inicio": fecha_inicio,
-                        "fecha_fin": fecha_fin,
-                        "encuestas_cubiertas": encuestas_cubiertas,
-                        "encuestas_incompletas": encuestas_incompletas,
-                        "encuestas_totales": encuestas_totales,
-                    },
-                )
-                created_encuestas.append(encuesta)
-            except IntegrityError as e:
-                return Response(
-                    {"detail": "Foreign key constraint failed", "error": str(e)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        serializer = self.get_serializer(created_encuestas, many=True)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class ColegioViewSet(viewsets.ModelViewSet):
@@ -260,33 +135,9 @@ class ColegioViewSet(viewsets.ModelViewSet):
             )
         return JsonResponse(payload)
 
-    @action(detail=False, methods=["post"], parser_classes=[JSONParser])
-    def bulk_create_xlsx(self, request, *args, **kwargs):
-        """
-        Endpoint para recibir un archivo XLSX, procesarlo y devolver un JSON con información de colegios.
-        Protección CSRF habilitada.
-
-        Args:
-            request (HttpRequest): La petición HTTP.
-
-        Returns:
-            JsonResponse: Una respuesta JSON con la información de los colegios.
-        """
-        if request.method == 'POST' and request.FILES.get('archivo_xlsx'):
-            archivo_xlsx = request.FILES['archivo_xlsx']
-
-            try:
-                colegios = excel2_to_json(archivo_xlsx)
-                return JsonResponse({"colegios": colegios}, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
-
-            except ValueError as e:
-                return JsonResponse({"error": str(e)}, status=400, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
-        else:
-            return JsonResponse({"error": "Se requiere un archivo XLSX en la petición POST."}, status=400, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
-    
-    @action(detail=False, methods=["post"], parser_classes=[JSONParser])
-    def bulk_create(self, request, *args, **kwargs):
-        """This method is used to create multiple Colegio objects.
+    @action(detail=False, methods=["post"], parser_classes=[MultiPartParser], serializer_class=FileUploadSerializer)
+    def cocina_csv(self, request, *args, **kwargs):
+        """This method is used to create multiple Colegio objects from a CSV file.
         Args:
             request (_type_): _description_
 
@@ -294,63 +145,59 @@ class ColegioViewSet(viewsets.ModelViewSet):
             _type_: _description_
 
         """
-        colegios = request.data.get("colegios", [])
-        if not colegios:
+        # serializer_class = FileUploadSerializer
+        file = request.FILES.get("cocina_csv")
+        if not file:
             return Response(
-                {"detail": "No colegios provided"}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "No file provided"}, status=status.HTTP_400_BAD_REQUEST
             )
-
+        logging.debug(f"bulk_create_csv. file: {file}")
         created_colegios = []
-        for colegio_data in colegios:
-            cid = colegio_data.get("cid")
-            nombre = colegio_data.get("nombre")
-            comunidad_autonoma = colegio_data.get("comunidad_autonoma")
-            telefono = colegio_data.get("telefono")
-            email = colegio_data.get("email")
-            pri_sid = colegio_data.get("pri_sid")
-            sec_sid = colegio_data.get("sec_sid")
-            pro_sid = colegio_data.get("pro_sid")
-            if not all([cid, nombre, comunidad_autonoma]):
+        csv_file = StringIO(file.read().decode("utf-8"))
+        reader = csv.DictReader(csv_file)
+
+        for row in reader:
+            nombre = row["AN"]
+            comunidad_autonoma = row["CCAA"]
+            ssid = row["SSID"]
+            id_de_centro = row["ID DE CENTRO"]
+            url = row["URL"]
+            tipologia = row["TIPOLOGIA"]
+
+            cid, nivel = id_de_centro.split(" - ")
+
+            if not all([cid, nombre, comunidad_autonoma, ssid, url, tipologia]):
                 return Response(
                     {"detail": "Missing parameters for one or more colegios"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+
+            # Check if Colegio already exists
+            if Colegio.objects.filter(cid=cid).exists():
+                continue
+
+            # Create or update Encuesta. Alse gets its results from LimeSurvey
             # Check SIDs exist in database, if not, run UpdateEncuesta
-            pri_encuesta = update_encuesta_by_sid(pri_sid) if pri_sid else None
-            sec_encuesta = update_encuesta_by_sid(sec_sid) if sec_sid else None
-            pro_encuesta = update_encuesta_by_sid(pro_sid) if pro_sid else None
+            encuesta = update_encuesta_by_sid(ssid) if ssid else None
 
-            try:
-                colegio, created = Colegio.objects.update_or_create(
-                    cid=cid,
-                    defaults={
-                        "nombre": nombre,
-                        "comunidad_autonoma": comunidad_autonoma,
-                        "telefono": telefono,
-                        "email": email,
-                        "pri_sid": pri_encuesta,
-                        "sec_sid": sec_encuesta,
-                        "pro_sid": pro_encuesta,
-                    },
-                )
-                created_colegios.append(colegio)
-            except IntegrityError as e:
-                return JsonResponse(
-                    {"detalle": "Foreign key constraint failed", "error": str(e)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            except Exception as e:
-                return JsonResponse(
-                    {
-                        "detalle": "Error al actualizar o crear el objeto Colegio",
-                        "error": str(e),
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            # Create Colegio
+            colegio, created = Colegio.objects.update_or_create(
+                cid=cid,
+                defaults={
+                    "nombre": nombre,
+                    "comunidad_autonoma": comunidad_autonoma,
+                    "telefono": "",
+                    "email": "",
+                    "pri_sid": encuesta if "Primaria" in nivel else None,
+                    "sec_sid": encuesta if "Secundaria" in nivel else None,
+                    "pro_sid": encuesta if "Profesorado" in nivel else None,
+                },
+            )
+            logging.debug(f"bulk_create_csv. colegio: {colegio}")
+            created_colegios.append(colegio)
 
-        serializer = self.get_serializer(created_colegios, many=True)
+        serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 
 @csrf_exempt
 @require_POST
@@ -414,77 +261,6 @@ def UpdateEncuesta(request):
 
     return JsonResponse(data_externa)
 
-
-@csrf_exempt
-@require_POST
-def UpdateEntradas(request):
-    """This method is used to update the number of responses for all Encuesta objects stored in the database.
-        Sends a POST request with the sid, usr, and pass parameters to the LimeSurvey API for each Encuesta object and retrieves the number of responses.
-    Args:
-        request (HttpRequest): The HTTP request containing the usr and pass parameters.
-
-    Returns:
-        JsonResponse: A JSON response containing the updated data or an error message.
-    """
-    usr = request.POST.get("usr")
-    password = request.POST.get("pass")
-
-    if not all([usr, password]):
-        return Response(
-            {"detail": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
-        )
-    stored_sids = Encuesta.objects.values_list("sid", flat=True)
-    payload_array = []
-    for sid in stored_sids:
-        payload = {"sid": sid, "usr": usr, "pass": password}
-        payload_array.append(payload)
-
-    try:
-        data_externa_array = []
-        # Se realiza la petición POST al servicio externo
-        for payload in payload_array:
-            response = requests.post(API_LIMESURVEY, data=payload, verify=False)
-            response.raise_for_status()  # Lanza excepción en caso de error HTTP
-            data_externa = response.json()  # Se decodifica la respuesta JSON
-            data_externa_array.append(data_externa)
-
-        # Aquí se puede actualizar la base de datos local utilizando data_externa
-        # Por ejemplo, se podría actualizar o crear un objeto Survey:
-        for data_externa in data_externa_array:
-            Encuesta.objects.update_or_create(
-                sid=data_externa.get("Encuesta", {}).get("SID"),
-                defaults={
-                    "titulo": data_externa.get("Encuesta", {}).get("Titulo encuesta"),
-                    "activa": data_externa.get("Encuesta", {}).get("Activa"),
-                    "url": data_externa.get("Encuesta", {}).get("Url"),
-                    "fecha_inicio": data_externa.get("Encuesta", {}).get(
-                        "Fecha inicio"
-                    ),
-                    "fecha_fin": data_externa.get("Encuesta", {}).get("Fecha fin"),
-                    "encuestas_cubiertas": data_externa.get("Encuesta", {}).get(
-                        "Encuestas cubiertas"
-                    ),
-                    "encuestas_incompletas": data_externa.get("Encuesta", {}).get(
-                        "Encuestas incompletas"
-                    ),
-                    "encuestas_totales": data_externa.get("Encuesta", {}).get(
-                        "Encuestas totales"
-                    ),
-                    # Otros campos según sea necesario
-                },
-            )
-
-    except requests.RequestException as ex:
-        return JsonResponse(
-            {"error": "Error en la petición al servicio externo", "detalle": str(ex)},
-            status=500,
-        )
-    except ValueError as ex:
-        return JsonResponse(
-            {"error": "Respuesta JSON inválida", "detalle": str(ex)}, status=500
-        )
-
-    return JsonResponse(data_externa)
 
 def push_to_gh_repo(csv_data):
     """This method pushes csv data to a GitHub repository.
@@ -580,3 +356,21 @@ def generate_csv(request):
     push_to_gh_repo(csv_data=csv_data)
 
     return None
+
+
+class FileUploadView(views.APIView):
+    parser_classes = [MultiPartParser]
+    serializer_class = FileUploadSerializer
+    
+    def create(self, request):
+        file_uploaded = request.FILES.get('file_uploaded')
+        content_type = file_uploaded.content_type
+        response = "POST API and you have uploaded a {} file".format(content_type)
+        return Response(response)
+
+    def put(self, request, filename, format=None):
+        file_obj = request.data['file']
+        # ...
+        # do some stuff with uploaded file
+        # ...
+        return Response(status=204)
