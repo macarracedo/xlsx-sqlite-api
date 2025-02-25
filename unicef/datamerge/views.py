@@ -11,14 +11,15 @@ from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
     EncuestaSerializer,
+    EncuestaResult,
     ColegioSerializer,
 )
-from unicef.datamerge.utils import excel2_to_json
+from unicef.datamerge.utils import excel2_to_json, update_encuesta_by_sid
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from openpyxl import load_workbook
-from unicef.datamerge.models import Encuesta, Colegio
+from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
 from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
 from django.db import IntegrityError
 import logging
@@ -26,43 +27,17 @@ import csv
 import os
 from github import Github
 from dotenv import load_dotenv
+from django.utils import timezone
 
-API_LIMESURVEY = "#########################################################"
-INTERNAL_LS_USER = "####"
-INTERNAL_LS_PASS = "########"
+API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
+INTERNAL_LS_USER = "ccii"
+INTERNAL_LS_PASS = "ccii2024"
 GITHUB_TOKEN= '#####################################'
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
 
 
-class MockRequest(HttpRequest):
-    def __init__(self, data):
-        super().__init__()
-        self.method = "POST"
-        self.POST = data
-
-
-def update_encuesta_by_sid(sid):
-    if not Encuesta.objects.filter(sid=sid).exists():
-        logging.debug(f"update_encuesta_by_sid. sid: {sid}")
-        try:
-            request_data = {
-                "sid": sid,
-                "usr": INTERNAL_LS_USER,
-                "pass": INTERNAL_LS_PASS,
-            }
-            mock_request = MockRequest(request_data)
-            logging.debug(
-                f"update_encuesta_by_sid. mock_request: {mock_request.__dict__}"
-            )
-            UpdateEncuesta(mock_request)
-            encuesta = Encuesta.objects.get(sid=sid) if sid else None
-            logging.debug(f"update_encuesta_by_sid. encuesta: {encuesta}")
-            return encuesta
-        except Exception as e:
-            raise Exception(f"Error updating Encuesta with SID: {sid}, error: {str(e)}")
-    return Encuesta.objects.get(sid=sid)
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -381,13 +356,12 @@ class ColegioViewSet(viewsets.ModelViewSet):
 @require_POST
 def UpdateEncuesta(request):
     """This method is used to update the number of responses of an Encuesta object.
-        Sends a GET request with the url of the Encuesta object to LimeSurvey API and retrives the number of responses.
+        Sends a GET request with the url of the Encuesta object to LimeSurvey API and retrieves the number of responses.
     Args:
-        request (_type_): _description_
+        request (HttpRequest): The HTTP request containing the sid, usr, and pass parameters.
 
     Returns:
-        _type_: _description_
-
+        JsonResponse: A JSON response containing the updated data or an error message.
     """
     logging.debug(f"UpdateEncuesta. request: {request.__dict__}")
     sid = request.POST.get("sid")
@@ -395,7 +369,7 @@ def UpdateEncuesta(request):
     password = request.POST.get("pass")
     logging.debug(f"UpdateEncuesta. sid: {sid}")
     if not all([sid, usr, password]):
-        return Response(
+        return JsonResponse(
             {"detail": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -408,27 +382,20 @@ def UpdateEncuesta(request):
         response.raise_for_status()  # Lanza excepción en caso de error HTTP
         data_externa = response.json()  # Se decodifica la respuesta JSON
         logging.debug(f"UpdateEncuesta. data_externa:{data_externa}")
-        # Aquí se puede actualizar la base de datos local utilizando data_externa
-        # Por ejemplo, se podría actualizar o crear un objeto Survey:
-        Encuesta.objects.update_or_create(
-            sid=data_externa.get("Encuesta", {}).get("SID"),
+
+        # Fetch the Encuesta object
+        encuesta = Encuesta.objects.get(sid=sid)
+
+        # Update or create the daily result
+        today = timezone.now().date()
+        EncuestaResult.objects.update_or_create(
+            encuesta=encuesta,
+            date=today,
             defaults={
-                "titulo": data_externa.get("Encuesta", {}).get("Titulo encuesta"),
-                "activa": data_externa.get("Encuesta", {}).get("Activa"),
-                "url": data_externa.get("Encuesta", {}).get("Url"),
-                "fecha_inicio": data_externa.get("Encuesta", {}).get("Fecha inicio"),
-                "fecha_fin": data_externa.get("Encuesta", {}).get("Fecha fin"),
-                "encuestas_cubiertas": data_externa.get("Encuesta", {}).get(
-                    "Encuestas cubiertas"
-                ),
-                "encuestas_incompletas": data_externa.get("Encuesta", {}).get(
-                    "Encuestas incompletas"
-                ),
-                "encuestas_totales": data_externa.get("Encuesta", {}).get(
-                    "Encuestas totales"
-                ),
-                # Otros campos según sea necesario
-            },
+                "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
+                "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
+                "encuestas_totales": data_externa.get("Encuesta", {}).get("Encuestas totales"),
+            }
         )
 
     except requests.RequestException as ex:
@@ -439,6 +406,10 @@ def UpdateEncuesta(request):
     except ValueError as ex:
         return JsonResponse(
             {"error": "Respuesta JSON inválida", "detalle": str(ex)}, status=500
+        )
+    except Encuesta.DoesNotExist:
+        return JsonResponse(
+            {"error": "Encuesta not found"}, status=status.HTTP_404_NOT_FOUND
         )
 
     return JsonResponse(data_externa)

@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-fw(uy)5$-(a2@pji7%p8!g9=x6#85lc$(*(*(t-2!*up0tua$)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['10.10.10.115', 'localhost']
+ALLOWED_HOSTS = ['10.10.10.115', 'localhost', '0.0.0.0']
 
 
 # Application definition
@@ -123,6 +123,9 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
 
 # Pagination allows you to control how many objects per page are returned.
 # To enable it add the following lines
