@@ -27,6 +27,19 @@ from dotenv import load_dotenv
 from django.utils import timezone
 
 GITHUB_TOKEN= '#####################################'
+# Hardcoded values for previstas and centros_previstos
+PREVISTAS = {
+    "Andalucía": 14271,
+    "Aragón": 3615,
+    # Add other comunidades as needed
+}
+
+CENTROS_PREVISTOS = {
+    "Andalucía": 72,
+    "Aragón": 18,
+    # Add other comunidades as needed
+}
+
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -470,3 +483,68 @@ def update_csv_completitud_by_comunidad(request):
     push_to_gh_repo(csv_data=csv_data, file_path="data/test/completitud_by_comunidad.csv")
     
     return None
+
+@csrf_exempt
+@require_GET
+def generate_csv_previstas_by_comunidad(request):
+    """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
+    # Query the database to get the required data
+    colegios = (
+        Colegio.objects.values("comunidad_autonoma")
+        .annotate(
+            realizadas=Sum("pri_sid__results__encuestas_cubiertas")
+            + Sum("sec_sid__results__encuestas_cubiertas")
+            + Sum("pro_sid__results__encuestas_cubiertas"),
+            centros_actuales=Count("id"),
+        )
+        .values(
+            "comunidad_autonoma",
+            "realizadas",
+            "centros_actuales",
+        )
+    )
+
+    # Create the HttpResponse object with the appropriate CSV header.
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="colegios_previstas_by_comunidad.csv"'
+
+    writer = csv.writer(response)
+    # Write the header row
+    writer.writerow(
+        [
+            "CCAA",
+            "Previstas",
+            "Realizadas",
+            "Faltan",
+            "Porcentaje",
+            "Centros previstos",
+            "Centros actuales",
+            "Porcentaje1",
+        ]
+    )
+
+    # Write data rows
+    for colegio in colegios:
+        comunidad = colegio["comunidad_autonoma"]
+        previstas = PREVISTAS.get(comunidad, 0)
+        realizadas = colegio["realizadas"]
+        faltan = previstas - realizadas
+        porcentaje = (realizadas / previstas) * 100 if previstas > 0 else 0
+        centros_previstos = CENTROS_PREVISTOS.get(comunidad, 0)
+        centros_actuales = colegio["centros_actuales"]
+        porcentaje1 = (centros_actuales / centros_previstos) * 100 if centros_previstos > 0 else 0
+
+        writer.writerow(
+            [
+                comunidad,
+                previstas,
+                realizadas,
+                faltan,
+                f"{porcentaje:.2f}%",
+                centros_previstos,
+                centros_actuales,
+                f"{porcentaje1:.2f}%",
+            ]
+        )
+
+    return response
