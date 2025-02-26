@@ -29,7 +29,7 @@ class Encuesta(models.Model):
 
 class EncuestaResult(models.Model):
     encuesta = models.ForeignKey(Encuesta, on_delete=models.CASCADE, related_name='results')
-    date = models.DateField(default=timezone.now)
+    date = models.DateTimeField(default=timezone.now)
     encuestas_cubiertas = models.IntegerField()
     encuestas_incompletas = models.IntegerField()
     encuestas_totales = models.IntegerField()

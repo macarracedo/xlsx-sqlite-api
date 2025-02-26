@@ -16,14 +16,12 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework import routers
 
 from .datamerge import views
 
 router = routers.DefaultRouter()
-router.register(r"users", views.UserViewSet)
-router.register(r"groups", views.GroupViewSet)
 router.register(r"encuestas", views.EncuestaViewSet)
 router.register(r"colegios", views.ColegioViewSet)
 
@@ -31,6 +29,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include(router.urls)),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
-    path("update-encuesta/", views.UpdateEncuesta, name="update-encuesta"),
     path("generate_csv/", views.generate_csv, name="generate_csv"),
+    path("upload", views.FileUploadView.as_view()),
 ]
