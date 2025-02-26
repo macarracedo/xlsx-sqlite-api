@@ -79,8 +79,8 @@ DATABASES = {
     "default":{
         "ENGINE": "django.db.backends.postgresql",
         "NAME": "unicef",
-        "USER": "unicef",
-        "PASSWORD": "unicef",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
         "HOST": "10.10.10.129",
         "PORT": "5432",
     },
