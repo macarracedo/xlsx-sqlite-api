@@ -76,7 +76,16 @@ WSGI_APPLICATION = "unicef.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": {
+    "default":{
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "unicef",
+        "USER": "unicef",
+        "PASSWORD": "unicef",
+        "HOST": "10.10.10.129",
+        "PORT": "5432",
+    },
+    # Add sqlite3 as a second database
+    "sqlite3": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
