@@ -298,7 +298,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
         serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-def push_to_gh_repo(csv_data):
+def push_to_gh_repo(csv_data, file_path="data/test/colegios_data.csv", commit_message="[BOT] Update colegios data CSV"):
     """This method pushes csv data to a GitHub repository.
 
     Args:
@@ -306,8 +306,6 @@ def push_to_gh_repo(csv_data):
     """
     # GitHub repository and file details
     repo_name = "macarracedo/xlsx-sqlite-api"
-    file_path = "data/colegios_data.csv"
-    commit_message = "[BOT] Update colegios data CSV"
 
 
     g = Github(GITHUB_TOKEN)
@@ -323,7 +321,7 @@ def push_to_gh_repo(csv_data):
 
 @csrf_exempt
 @require_GET
-def generate_csv(request):
+def generate_csv_completas(request):
     """Generate a CSV file from data stored in the database."""
     # Query the database to get the required data
     colegios = (
