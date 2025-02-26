@@ -390,21 +390,3 @@ def generate_csv_completas(request):
     push_to_gh_repo(csv_data=csv_data)
 
     return None
-
-
-class FileUploadView(views.APIView):
-    parser_classes = [MultiPartParser]
-    serializer_class = FileUploadSerializer
-    
-    def create(self, request):
-        file_uploaded = request.FILES.get('file_uploaded')
-        content_type = file_uploaded.content_type
-        response = "POST API and you have uploaded a {} file".format(content_type)
-        return Response(response)
-
-    def put(self, request, filename, format=None):
-        file_obj = request.data['file']
-        # ...
-        # do some stuff with uploaded file
-        # ...
-        return Response(status=204)
