@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
 
-def update_encuesta_by_sid(sid):
+def update_encuesta_by_sid(sid, check_results=True):
     logging.debug(f"update_encuesta_by_sid. sid: {sid}")
     if not sid:
         raise ValueError("SID is required")
@@ -37,18 +37,18 @@ def update_encuesta_by_sid(sid):
                 "url": data_externa["Encuesta"]["Url"],
             },
         )
-
-        # Update or create the daily result
-        now = timezone.now()
-        EncuestaResult.objects.update_or_create(
-            encuesta=encuesta,
-            date=now,
-            defaults={
-                "encuestas_cubiertas": data_externa["Encuesta"]["Encuestas cubiertas"],
-                "encuestas_incompletas": data_externa["Encuesta"]["Encuestas incompletas"],
-                "encuestas_totales": data_externa["Encuesta"]["Encuestas totales"],
-            }
-        )
+        if check_results:
+            # Update or create the daily result
+            now = timezone.now()
+            EncuestaResult.objects.update_or_create(
+                encuesta=encuesta,
+                date=now,
+                defaults={
+                    "encuestas_cubiertas": data_externa["Encuesta"]["Encuestas cubiertas"],
+                    "encuestas_incompletas": data_externa["Encuesta"]["Encuestas incompletas"],
+                    "encuestas_totales": data_externa["Encuesta"]["Encuestas totales"],
+                }
+            )
         logging.debug(f"update_encuesta_by_sid. encuesta with sid {encuesta.sid} updated")
         return encuesta
 
