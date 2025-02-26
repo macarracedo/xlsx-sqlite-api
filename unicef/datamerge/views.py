@@ -168,8 +168,9 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 )
 
             # Check if Colegio already exists
-            # if Colegio.objects.filter(cid=cid).exists():
-            #    continue
+            if Colegio.objects.filter(cid=cid).exists():
+                logging.debug(f"bulk_create_csv. colegio {nombre} with cid {cid} already exists. Skipping")
+                continue
 
             try:
                 # Create or update Encuesta. Also gets its results from LimeSurvey
@@ -254,12 +255,17 @@ class ColegioViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # Check if Colegio already exists
+            if Colegio.objects.filter(cid=cid).exists():
+                logging.debug(f"bulk_create_csv. colegio {nombre} with cid {cid} already exists. Skipping")
+                continue
+
             try:
                 pri_encuesta = update_encuesta_by_sid(pri_sid, check_results=False) if pri_sid else None
                 sec_encuesta = update_encuesta_by_sid(sec_sid, check_results=False) if sec_sid else None
                 pro_encuesta = update_encuesta_by_sid(pro_sid, check_results=False) if pro_sid else None
             except Exception as e:
-                logging.error(f"Error updating encuesta for Colegio {nombre} with SIDs {pri_sid}, {sec_sid}, {pro_sid}: {e}")
+                logging.error(f"Error updating encuesta for Colegio {nombre} with cid {cid}. Error: {e}")
                 continue
 
             try:
