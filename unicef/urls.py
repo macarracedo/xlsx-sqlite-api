@@ -29,6 +29,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include(router.urls)),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
-    path("generate_csv/", views.generate_csv, name="generate_csv"),
-    path("upload", views.FileUploadView.as_view()),
+    path("generate_csv_completas/", views.generate_csv_completas, name="generate_csv_completas"),
+    path("generate_csv_completitud_by_comunidad/", views.generate_csv_completitud_by_comunidad, name="generate_csv_completitud_by_comunidad"),
+    path("update_csv_completitud_by_comunidad/", views.update_csv_completitud_by_comunidad, name="update_csv_completitud_by_comunidad"),
 ]
