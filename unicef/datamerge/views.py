@@ -210,6 +210,87 @@ class ColegioViewSet(viewsets.ModelViewSet):
         serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=["post"], parser_classes=[MultiPartParser], serializer_class=FileUploadSerializer)
+    def cocina_csv_new(self, request, *args, **kwargs):
+        """This method is used to create multiple Colegio objects from a CSV file with a new format.
+        Args:
+            request (_type_): _description_
+
+        Returns:
+            _type_: _description_
+
+        """
+        file = request.FILES.get("cocina_csv")
+        if not file:
+            return Response(
+                {"detail": "No file provided"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        logging.debug(f"bulk_create_csv. file: {file}")
+        created_colegios = []
+        csv_file = StringIO(file.read().decode("utf-8"))
+        reader = csv.DictReader(csv_file)
+
+        for row in reader:
+            nombre = row["CENTRO"]
+            comunidad_autonoma = row["CA"]
+            cod_cid = row["Codigo interno"]
+            pri_url = row["PRIMARIA"]
+            sec_url = row["SECUNDARIA"]
+            pro_url = row["PROFESORADO"]
+            
+            pri_sid = re.search(r'sid=(\d{6})', pri_url).group(1) if pri_url else None
+            sec_sid = re.search(r'sid=(\d{6})', sec_url).group(1) if sec_url else None
+            pro_sid = re.search(r'sid=(\d{6})', pro_url).group(1) if pro_url else None
+            
+
+            # Remove all letter P, D and S contained in the string from each ID
+            cid = re.sub(r'[PDS]', '', cod_cid) # este se usará para el id del colegio (cid)
+            sec_sid = re.sub(r'[PDS]', '', sec_sid)
+            pro_sid = re.sub(r'[PDS]', '', pro_sid)
+
+            if not all([nombre, comunidad_autonoma, pri_sid, pri_url, sec_sid, sec_url, pro_sid, pro_url]):
+                return Response(
+                    {"detail": "Missing parameters for one or more colegios"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                pri_encuesta = update_encuesta_by_sid(pri_sid, check_results=False) if pri_sid else None
+                sec_encuesta = update_encuesta_by_sid(sec_sid, check_results=False) if sec_sid else None
+                pro_encuesta = update_encuesta_by_sid(pro_sid, check_results=False) if pro_sid else None
+            except Exception as e:
+                logging.error(f"Error updating encuesta for Colegio {nombre} with SIDs {pri_sid}, {sec_sid}, {pro_sid}: {e}")
+                continue
+
+            try:
+                colegio = Colegio.objects.get(cid=cid)
+                colegio.nombre = nombre
+                colegio.comunidad_autonoma = comunidad_autonoma
+                colegio.telefono = colegio.telefono or ""
+                colegio.email = colegio.email or ""
+                colegio.pri_sid = pri_encuesta
+                colegio.sec_sid = sec_encuesta
+                colegio.pro_sid = pro_encuesta
+                colegio.save()
+                created = False
+            except Colegio.DoesNotExist:
+                colegio, created = Colegio.objects.update_or_create(
+                    cid=cid,
+                    defaults={
+                        "nombre": nombre,
+                        "comunidad_autonoma": comunidad_autonoma,
+                        "telefono": "",
+                        "email": "",
+                        "pri_sid": pri_encuesta,
+                        "sec_sid": sec_encuesta,
+                        "pro_sid": pro_encuesta,
+                    },
+                )
+            logging.debug(f"bulk_create_csv. colegio {colegio} created")
+            created_colegios.append(colegio)
+
+        serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 def push_to_gh_repo(csv_data):
     """This method pushes csv data to a GitHub repository.
