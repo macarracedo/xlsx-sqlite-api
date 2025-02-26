@@ -81,7 +81,7 @@ DATABASES = {
         "NAME": "unicef",
         "USER": "postgres",
         "PASSWORD": "postgres",
-        "HOST": "10.10.10.129",
+        "HOST": "10.10.10.106",
         "PORT": "5432",
     },
     # Add sqlite3 as a second database
