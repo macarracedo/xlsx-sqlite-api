@@ -390,3 +390,83 @@ def generate_csv_completas(request):
     push_to_gh_repo(csv_data=csv_data)
 
     return None
+
+@csrf_exempt
+@require_GET
+def generate_csv_completitud_by_comunidad(request):
+    """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
+    # Query the database to get the required data
+    colegios = (
+        Colegio.objects.values("comunidad_autonoma")
+        .annotate(
+            encuestas_totales=Sum("pri_sid__results__encuestas_totales")
+            + Sum("sec_sid__results__encuestas_totales")
+            + Sum("pro_sid__results__encuestas_totales"),
+            encuestas_cubiertas=Sum("pri_sid__results__encuestas_cubiertas")
+            + Sum("sec_sid__results__encuestas_cubiertas")
+            + Sum("pro_sid__results__encuestas_cubiertas"),
+            encuestas_incompletas=Sum("pri_sid__results__encuestas_incompletas")
+            + Sum("sec_sid__results__encuestas_incompletas")
+            + Sum("pro_sid__results__encuestas_incompletas"),
+            total_centros=Count("id"),
+        )
+        .annotate(
+            porcentaje=ExpressionWrapper(
+                F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                output_field=FloatField(),
+            )
+        )
+        .values(
+            "comunidad_autonoma",
+            "encuestas_totales",
+            "encuestas_cubiertas",
+            "encuestas_incompletas",
+            "porcentaje",
+            "total_centros",
+        )
+    )
+
+    # Create the HttpResponse object with the appropriate CSV header.
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="completitud_by_comunidad.csv"'
+
+    writer = csv.writer(response)
+    # Write the header row
+    writer.writerow(
+        [
+            "comunidad",
+            "encuestas_totales",
+            "encuestas_cubiertas",
+            "encuestas_incompletas",
+            "porcentaje",
+            "total_centros",
+        ]
+    )
+
+    # Write data rows
+    for colegio in colegios:
+        writer.writerow(
+            [
+                colegio["comunidad_autonoma"],
+                colegio["encuestas_totales"],
+                colegio["encuestas_cubiertas"],
+                colegio["encuestas_incompletas"],
+                colegio["porcentaje"],
+                colegio["total_centros"],
+            ]
+        )
+    
+    return response
+
+@csrf_exempt
+@require_GET
+def update_csv_completitud_by_comunidad(request):
+    
+    response = generate_csv_completitud_by_comunidad(request)
+    
+    # Upload csv_data to github
+    csv_data =  response.getvalue()
+    logging.debug(f"generate_csv. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/test/completitud_by_comunidad.csv")
+    
+    return None
