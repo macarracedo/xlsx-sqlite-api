@@ -26,9 +26,6 @@ from github import Github
 from dotenv import load_dotenv
 from django.utils import timezone
 
-API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
-INTERNAL_LS_USER = "ccii"
-INTERNAL_LS_PASS = "ccii2024"
 GITHUB_TOKEN= '#####################################'
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
