@@ -129,7 +129,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
         return JsonResponse(payload)
 
     @action(detail=False, methods=["post"], parser_classes=[MultiPartParser], serializer_class=FileUploadSerializer)
-    def cocina_csv(self, request, *args, **kwargs):
+    def cocina_csv_old(self, request, *args, **kwargs):
         """This method is used to create multiple Colegio objects from a CSV file.
         Args:
             request (_type_): _description_
@@ -174,7 +174,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
             try:
                 # Create or update Encuesta. Also gets its results from LimeSurvey
                 # Check SIDs exist in database, if not, run UpdateEncuesta
-                encuesta = update_encuesta_by_sid(ssid) if ssid else None
+                encuesta = update_encuesta_by_sid(ssid, check_results=False) if ssid else None
             except Exception as e:
                 logging.error(f"Error updating encuesta for SSID {ssid}: {e}")
                 continue
