@@ -357,100 +357,179 @@ class ColegioViewSet(viewsets.ModelViewSet):
         serializer = ColegioSerializer(created_colegios, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-def push_to_gh_repo(csv_data, file_path="data/test/colegios_data.csv", commit_message="[BOT] Update colegios data CSV"):
-    """This method pushes csv data to a GitHub repository.
 
-    Args:
-        csv_data (str): The CSV data to be pushed.
-    """
-    # GitHub repository and file details
-    repo_name = "macarracedo/xlsx-sqlite-api"
-
-
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(repo_name)
-
-    try:
-        # Get the file if it exists
-        contents = repo.get_contents(file_path)
-        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
-    except Exception as e:
-        # If the file does not exist, create it
-        repo.create_file(file_path, commit_message, csv_data)
-
-@csrf_exempt
-@require_GET
-def generate_csv_completitud_by_comunidad(request):
-    """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
-    # Query the database to get the required data
-    colegios = (
-        Colegio.objects.values("comunidad_autonoma")
-        .annotate(
-            encuestas_totales=Sum("pri_sid__results__encuestas_totales")
-            + Sum("sec_sid__results__encuestas_totales")
-            + Sum("pro_sid__results__encuestas_totales"),
-            encuestas_cubiertas=Sum("pri_sid__results__encuestas_cubiertas")
-            + Sum("sec_sid__results__encuestas_cubiertas")
-            + Sum("pro_sid__results__encuestas_cubiertas"),
-            encuestas_incompletas=Sum("pri_sid__results__encuestas_incompletas")
-            + Sum("sec_sid__results__encuestas_incompletas")
-            + Sum("pro_sid__results__encuestas_incompletas"),
-            total_centros=Count("id"),
-        )
-        .annotate(
-            porcentaje=ExpressionWrapper(
-                F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
-                output_field=FloatField(),
+    @action(detail=False, methods=["get"])
+    def generate_csv_completitud_by_comunidad(self, request, *args, **kwargs):
+        """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
+        # Query the database to get the required data
+        colegios = (
+            Colegio.objects.values("comunidad_autonoma")
+            .annotate(
+                encuestas_totales=Sum("pri_sid__results__encuestas_totales")
+                + Sum("sec_sid__results__encuestas_totales")
+                + Sum("pro_sid__results__encuestas_totales"),
+                encuestas_cubiertas=Sum("pri_sid__results__encuestas_cubiertas")
+                + Sum("sec_sid__results__encuestas_cubiertas")
+                + Sum("pro_sid__results__encuestas_cubiertas"),
+                encuestas_incompletas=Sum("pri_sid__results__encuestas_incompletas")
+                + Sum("sec_sid__results__encuestas_incompletas")
+                + Sum("pro_sid__results__encuestas_incompletas"),
+                total_centros=Count("id"),
+            )
+            .annotate(
+                porcentaje=ExpressionWrapper(
+                    F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                    output_field=FloatField(),
+                )
+            )
+            .values(
+                "comunidad_autonoma",
+                "encuestas_totales",
+                "encuestas_cubiertas",
+                "encuestas_incompletas",
+                "porcentaje",
+                "total_centros",
             )
         )
-        .values(
-            "comunidad_autonoma",
-            "encuestas_totales",
-            "encuestas_cubiertas",
-            "encuestas_incompletas",
-            "porcentaje",
-            "total_centros",
-        )
-    )
 
-    # Create the HttpResponse object with the appropriate CSV header.
-    response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="completitud_by_comunidad.csv"'
+        # Create the HttpResponse object with the appropriate CSV header.
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="completitud_by_comunidad.csv"'
 
-    writer = csv.writer(response)
-    # Write the header row
-    writer.writerow(
-        [
-            "comunidad",
-            "encuestas_totales",
-            "encuestas_cubiertas",
-            "encuestas_incompletas",
-            "porcentaje",
-            "total_centros",
-        ]
-    )
-
-    # Write data rows
-    for colegio in colegios:
+        writer = csv.writer(response)
+        # Write the header row
         writer.writerow(
             [
-                colegio["comunidad_autonoma"],
-                colegio["encuestas_totales"],
-                colegio["encuestas_cubiertas"],
-                colegio["encuestas_incompletas"],
-                colegio["porcentaje"],
-                colegio["total_centros"],
+                "comunidad",
+                "encuestas_totales",
+                "encuestas_cubiertas",
+                "encuestas_incompletas",
+                "porcentaje",
+                "total_centros",
             ]
         )
-    response = update_ccaa_names_in_csv(response)
-    return response
+
+        # Write data rows
+        for colegio in colegios:
+            writer.writerow(
+                [
+                    colegio["comunidad_autonoma"],
+                    colegio["encuestas_totales"],
+                    colegio["encuestas_cubiertas"],
+                    colegio["encuestas_incompletas"],
+                    colegio["porcentaje"],
+                    colegio["total_centros"],
+                ]
+            )
+        response = update_ccaa_names_in_csv(response)
+        response = sort_csv_by_comunidad(response)
+        return response
+    
+    @action(detail=False, methods=["get"])
+    def generate_csv_previstas_by_comunidad(self, request, *args, **kwargs):
+        """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
+        # Query the database to get the required data
+        colegios = (
+            Colegio.objects.values("comunidad_autonoma")
+            .annotate(
+                realizadas=Coalesce(
+                    Sum("pri_sid__results__encuestas_cubiertas")
+                    + Sum("sec_sid__results__encuestas_cubiertas")
+                    + Sum("pro_sid__results__encuestas_cubiertas"), 
+                    Value(0)
+                ),
+                centros_actuales=Count("id"),
+            )
+            .values(
+                "comunidad_autonoma",
+                "realizadas",
+                "centros_actuales",
+            )
+        )
+
+        # Create the HttpResponse object with the appropriate CSV header.
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="previstas_by_comunidad.csv"'
+
+        writer = csv.writer(response)
+        # Write the header row
+        writer.writerow(
+            [
+                "CCAA",
+                "Previstas",
+                "Realizadas",
+                "Faltan",
+                "Porcentaje",
+                "Centros previstos",
+                "Centros actuales",
+                "Porcentaje1",
+            ]
+        )
+
+        # Initialize totals
+        total_previstas = 0
+        total_realizadas = 0
+        total_faltan = 0
+        total_centros_previstos = 0
+        total_centros_actuales = 0
+
+        # Write data rows
+        for colegio in colegios:
+            comunidad = colegio["comunidad_autonoma"]
+            previstas = PREVISTAS.get(comunidad, 0)
+            realizadas = colegio["realizadas"]
+            faltan = previstas - realizadas
+            porcentaje = (realizadas / previstas) * 100 if previstas > 0 else 0
+            centros_previstos = CENTROS_PREVISTOS.get(comunidad, 0)
+            centros_actuales = colegio["centros_actuales"]
+            porcentaje1 = (centros_actuales / centros_previstos) * 100 if centros_previstos > 0 else 0
+
+            writer.writerow(
+                [
+                    comunidad,
+                    previstas,
+                    realizadas,
+                    faltan,
+                    f"{porcentaje:.2f}%",
+                    centros_previstos,
+                    centros_actuales,
+                    f"{porcentaje1:.2f}%",
+                ]
+            )
+
+            # Accumulate totals
+            total_previstas += previstas
+            total_realizadas += realizadas
+            total_faltan += faltan
+            total_centros_previstos += centros_previstos
+            total_centros_actuales += centros_actuales
+
+        # Calculate total percentages
+        total_porcentaje = (total_realizadas / total_previstas) * 100 if total_previstas > 0 else 0
+        total_porcentaje1 = (total_centros_actuales / total_centros_previstos) * 100 if total_centros_previstos > 0 else 0
+
+        # Write totals row
+        writer.writerow(
+            [
+                "Totales",
+                total_previstas,
+                total_realizadas,
+                total_faltan,
+                f"{total_porcentaje:.2f}%",
+                total_centros_previstos,
+                total_centros_actuales,
+                f"{total_porcentaje1:.2f}%",
+            ]
+        )
+        response = update_ccaa_names_in_csv(response)
+        response = sort_csv_by_comunidad(response)
+        return response
 
 @csrf_exempt
 @require_GET
 def update_csv_completitud_by_comunidad(request):
     
-    response = generate_csv_completitud_by_comunidad(request)
-    response = sort_csv_by_comunidad(response)
+    response = ColegioViewSet.generate_csv_completitud_by_comunidad(request)
     
     # Upload csv_data to github
     csv_data =  response.getvalue()
@@ -461,110 +540,9 @@ def update_csv_completitud_by_comunidad(request):
 
 @csrf_exempt
 @require_GET
-def generate_csv_previstas_by_comunidad(request):
-    """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
-    # Query the database to get the required data
-    colegios = (
-        Colegio.objects.values("comunidad_autonoma")
-        .annotate(
-            realizadas=Coalesce(
-                Sum("pri_sid__results__encuestas_cubiertas")
-                + Sum("sec_sid__results__encuestas_cubiertas")
-                + Sum("pro_sid__results__encuestas_cubiertas"), 
-                Value(0)
-            ),
-            centros_actuales=Count("id"),
-        )
-        .values(
-            "comunidad_autonoma",
-            "realizadas",
-            "centros_actuales",
-        )
-    )
-
-    # Create the HttpResponse object with the appropriate CSV header.
-    response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="previstas_by_comunidad.csv"'
-
-    writer = csv.writer(response)
-    # Write the header row
-    writer.writerow(
-        [
-            "CCAA",
-            "Previstas",
-            "Realizadas",
-            "Faltan",
-            "Porcentaje",
-            "Centros previstos",
-            "Centros actuales",
-            "Porcentaje1",
-        ]
-    )
-
-    # Initialize totals
-    total_previstas = 0
-    total_realizadas = 0
-    total_faltan = 0
-    total_centros_previstos = 0
-    total_centros_actuales = 0
-
-    # Write data rows
-    for colegio in colegios:
-        comunidad = colegio["comunidad_autonoma"]
-        previstas = PREVISTAS.get(comunidad, 0)
-        realizadas = colegio["realizadas"]
-        faltan = previstas - realizadas
-        porcentaje = (realizadas / previstas) * 100 if previstas > 0 else 0
-        centros_previstos = CENTROS_PREVISTOS.get(comunidad, 0)
-        centros_actuales = colegio["centros_actuales"]
-        porcentaje1 = (centros_actuales / centros_previstos) * 100 if centros_previstos > 0 else 0
-
-        writer.writerow(
-            [
-                comunidad,
-                previstas,
-                realizadas,
-                faltan,
-                f"{porcentaje:.2f}%",
-                centros_previstos,
-                centros_actuales,
-                f"{porcentaje1:.2f}%",
-            ]
-        )
-
-        # Accumulate totals
-        total_previstas += previstas
-        total_realizadas += realizadas
-        total_faltan += faltan
-        total_centros_previstos += centros_previstos
-        total_centros_actuales += centros_actuales
-
-    # Calculate total percentages
-    total_porcentaje = (total_realizadas / total_previstas) * 100 if total_previstas > 0 else 0
-    total_porcentaje1 = (total_centros_actuales / total_centros_previstos) * 100 if total_centros_previstos > 0 else 0
-
-    # Write totals row
-    writer.writerow(
-        [
-            "Totales",
-            total_previstas,
-            total_realizadas,
-            total_faltan,
-            f"{total_porcentaje:.2f}%",
-            total_centros_previstos,
-            total_centros_actuales,
-            f"{total_porcentaje1:.2f}%",
-        ]
-    )
-    response = update_ccaa_names_in_csv(response)
-    response = sort_csv_by_comunidad(response)
-    return response
-
-@csrf_exempt
-@require_GET
 def update_csv_previstas_by_comunidad(request):
     
-    response = generate_csv_previstas_by_comunidad(request)
+    response = ColegioViewSet.generate_csv_previstas_by_comunidad(request)
     
     # Upload csv_data to github
     csv_data =  response.getvalue()
@@ -636,3 +614,24 @@ def sort_csv_by_comunidad(response):
     writer.writerows(sorted_data_rows)
 
     return sorted_response
+
+def push_to_gh_repo(csv_data, file_path="data/test/colegios_data.csv", commit_message="[BOT] Update colegios data CSV"):
+    """This method pushes csv data to a GitHub repository.
+
+    Args:
+        csv_data (str): The CSV data to be pushed.
+    """
+    # GitHub repository and file details
+    repo_name = "macarracedo/xlsx-sqlite-api"
+
+
+    g = Github(GITHUB_TOKEN)
+    repo = g.get_repo(repo_name)
+
+    try:
+        # Get the file if it exists
+        contents = repo.get_contents(file_path)
+        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
+    except Exception as e:
+        # If the file does not exist, create it
+        repo.create_file(file_path, commit_message, csv_data)
