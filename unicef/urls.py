@@ -32,4 +32,6 @@ urlpatterns = [
     path("generate_csv_completas/", views.generate_csv_completas, name="generate_csv_completas"),
     path("generate_csv_completitud_by_comunidad/", views.generate_csv_completitud_by_comunidad, name="generate_csv_completitud_by_comunidad"),
     path("update_csv_completitud_by_comunidad/", views.update_csv_completitud_by_comunidad, name="update_csv_completitud_by_comunidad"),
+    path("generate_csv_previstas_by_comunidad/", views.generate_csv_previstas_by_comunidad, name="generate_csv_previstas_by_comunidad"),
+    path("update_csv_previstas_by_comunidad/", views.update_csv_previstas_by_comunidad, name="update_csv_previstas_by_comunidad"),
 ]

@@ -17,27 +17,73 @@ from unicef.datamerge.utils import update_encuesta_by_sid
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
-from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Value
+from django.db.models.functions import Coalesce
 import logging
 import csv
 import re
+import io
 from io import StringIO
 from github import Github
 from dotenv import load_dotenv
 from django.utils import timezone
 
-GITHUB_TOKEN= '#####################################'
+GITHUB_TOKEN= '########################################'
 # Hardcoded values for previstas and centros_previstos
 PREVISTAS = {
-    "Andalucía": 14271,
-    "Aragón": 3615,
-    # Add other comunidades as needed
+    "ANDALUCÍA": 14271,
+    "ARAGÓN": 3615,
+    "CANARIAS": 4600,
+    "CANTABRIA": 2667,
+    "CASTILLA LEÓN": 4645,
+    "CASTILLA LA MANCHA": 4759,
+    "CATALUÑA": 12373,
+    "MADRID": 11078,
+    "NAVARRA": 2831,
+    "COMUNIDAD VALENCIANA": 8903,
+    "EXTREMADURA": 3280,
+    "GALICIA": 4977,
+    "BALEARES": 3431,
+    "LA RIOJA": 2364,
+    "PAIS VASCO": 4732,
+    "MELILLA": 2092,
+    "CEUTA": 2090,
+    "ASTURIAS": 3002,
+    "MURCIA": 4290
 }
 
 CENTROS_PREVISTOS = {
-    "Andalucía": 72,
-    "Aragón": 18,
-    # Add other comunidades as needed
+    "ANDALUCÍA": 72,
+    "ARAGÓN": 18,
+    "CANARIAS": 23,
+    "CANTABRIA": 13,
+    "CASTILLA LEÓN": 23,
+    "CASTILLA LA MANCHA": 24,
+    "CATALUÑA": 63,
+    "MADRID": 56,
+    "NAVARRA": 14,
+    "COMUNIDAD VALENCIANA": 44,
+    "EXTREMADURA": 16,
+    "GALICIA": 25,
+    "BALEARES": 17,
+    "LA RIOJA": 12,
+    "PAIS VASCO": 24,
+    "MELILLA": 10,
+    "CEUTA": 10,
+    "ASTURIAS": 15,
+    "MURCIA": 21
+}
+
+# Dictionary for CCAA name mappings
+CCAA_NAME_MAPPINGS = {
+    "MADRID": "COMUNIDAD DE MADRID",
+    "CASTILLA LEÓN": "CASTILLA Y LEÓN",
+    "CASTILLA LA MANCHA": "CASTILLA-LA MANCHA",
+    "PAIS VASCO": "PAÍS VASCO",
+    "NAVARRA": "COMUNIDAD FORAL DE NAVARRA",
+    "ASTURIAS": "PRINCIPADO DE ASTURIAS",
+    "BALEARES": "ISLAS BALEARES",
+    "MURCIA": "REGIÓN DE MURCIA"
 }
 
 logging.basicConfig(level=logging.DEBUG)
@@ -181,9 +227,9 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 )
 
             # Check if Colegio already exists
-            if Colegio.objects.filter(cid=cid).exists():
-                logging.debug(f"bulk_create_csv. colegio {nombre} with cid {cid} already exists. Skipping")
-                continue
+            # if Colegio.objects.filter(cid=cid).exists():
+            #     logging.debug(f"bulk_create_csv. colegio {nombre} with cid {cid} already exists. Skipping")
+            #     continue
 
             try:
                 # Create or update Encuesta. Also gets its results from LimeSurvey
@@ -468,7 +514,7 @@ def generate_csv_completitud_by_comunidad(request):
                 colegio["total_centros"],
             ]
         )
-    
+    response = update_ccaa_names_in_csv(response)
     return response
 
 @csrf_exempt
@@ -479,8 +525,8 @@ def update_csv_completitud_by_comunidad(request):
     
     # Upload csv_data to github
     csv_data =  response.getvalue()
-    logging.debug(f"generate_csv. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/test/completitud_by_comunidad.csv")
+    logging.debug(f"update_csv_completitud_by_comunidad. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/completitud_by_comunidad.csv")
     
     return None
 
@@ -492,9 +538,12 @@ def generate_csv_previstas_by_comunidad(request):
     colegios = (
         Colegio.objects.values("comunidad_autonoma")
         .annotate(
-            realizadas=Sum("pri_sid__results__encuestas_cubiertas")
-            + Sum("sec_sid__results__encuestas_cubiertas")
-            + Sum("pro_sid__results__encuestas_cubiertas"),
+            realizadas=Coalesce(
+                Sum("pri_sid__results__encuestas_cubiertas")
+                + Sum("sec_sid__results__encuestas_cubiertas")
+                + Sum("pro_sid__results__encuestas_cubiertas"), 
+                Value(0)
+            ),
             centros_actuales=Count("id"),
         )
         .values(
@@ -506,7 +555,7 @@ def generate_csv_previstas_by_comunidad(request):
 
     # Create the HttpResponse object with the appropriate CSV header.
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="colegios_previstas_by_comunidad.csv"'
+    response["Content-Disposition"] = 'attachment; filename="previstas_by_comunidad.csv"'
 
     writer = csv.writer(response)
     # Write the header row
@@ -546,5 +595,48 @@ def generate_csv_previstas_by_comunidad(request):
                 f"{porcentaje1:.2f}%",
             ]
         )
-
+    response = update_ccaa_names_in_csv(response)
     return response
+
+@csrf_exempt
+@require_GET
+def update_csv_previstas_by_comunidad(request):
+    
+    response = generate_csv_previstas_by_comunidad(request)
+    
+    # Upload csv_data to github
+    csv_data =  response.getvalue()
+    logging.debug(f"update_csv_previstas_by_comunidad. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/previstas_by_comunidad.csv")
+    
+    return None
+
+def update_ccaa_names_in_csv(response):
+    """Update the names in the CCAA column of given CSV based on a constant dictionary."""
+    # Get the CSV data from the generate_csv_previstas_by_comunidad method
+    csv_data = response.content.decode('utf-8')
+
+    # Read the CSV data
+    csv_file = io.StringIO(csv_data)
+    reader = csv.reader(csv_file)
+    rows = list(reader)
+
+    # Update the CCAA names
+    header = rows[0]
+    data_rows = rows[1:]
+    updated_rows = [header]
+
+    for row in data_rows:
+        comunidad = row[0]
+        updated_comunidad = CCAA_NAME_MAPPINGS.get(comunidad, comunidad)
+        row[0] = updated_comunidad
+        updated_rows.append(row)
+
+    # Create the HttpResponse object with the updated CSV data
+    updated_response = HttpResponse(content_type="text/csv")
+    updated_response["Content-Disposition"] = 'attachment; filename="updated_previstas_by_comunidad.csv"'
+
+    writer = csv.writer(updated_response)
+    writer.writerows(updated_rows)
+
+    return updated_response
