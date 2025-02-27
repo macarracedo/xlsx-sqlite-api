@@ -160,9 +160,9 @@ class ColegioViewSet(viewsets.ModelViewSet):
             "pro_sid": pro_sid,
         }
 
-        pri_encuesta = update_encuesta_by_sid(pri_sid) if pri_sid else None
-        sec_encuesta = update_encuesta_by_sid(sec_sid) if sec_sid else None
-        pro_encuesta = update_encuesta_by_sid(pro_sid) if pro_sid else None
+        pri_encuesta = update_encuesta_by_sid(pri_sid, check_results=False) if pri_sid else None
+        sec_encuesta = update_encuesta_by_sid(sec_sid, check_results=False) if sec_sid else None
+        pro_encuesta = update_encuesta_by_sid(pro_sid, check_results=False) if pro_sid else None
         try:
             # Se realiza la petición POST al servicio externo
             Colegio.objects.update_or_create(
