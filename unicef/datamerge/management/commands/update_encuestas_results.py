@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from unicef.datamerge.models import Encuesta, EncuestaResult
 from unicef.datamerge.views import update_csv_completitud_by_comunidad, update_csv_previstas_by_comunidad
+from django.test import RequestFactory
 import requests
 import logging
 
@@ -57,7 +58,10 @@ class Command(BaseCommand):
         
         # Generate and update CSV files
         self.stdout.write(self.style.SUCCESS('Generating and updating CSV files to GitHub...'))
-        update_csv_completitud_by_comunidad(None)
-        update_csv_previstas_by_comunidad(None)
+        factory = RequestFactory()
+        request = factory.get('/')
+
+        update_csv_completitud_by_comunidad(request)
+        update_csv_previstas_by_comunidad(request)
 
         self.stdout.write(self.style.SUCCESS('Successfully generated and updated CSV files in GitHub'))        

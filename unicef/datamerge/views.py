@@ -17,7 +17,7 @@ from unicef.datamerge.utils import update_encuesta_by_sid
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
-from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Value
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Value, OuterRef, Subquery, IntegerField
 from django.db.models.functions import Coalesce
 import logging
 import csv
@@ -361,35 +361,77 @@ class ColegioViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def generate_csv_completitud_by_comunidad(self, request, *args, **kwargs):
         """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
-        # Query the database to get the required data
-        colegios = (
-            Colegio.objects.values("comunidad_autonoma")
-            .annotate(
-                encuestas_totales=Sum("pri_sid__results__encuestas_totales")
-                + Sum("sec_sid__results__encuestas_totales")
-                + Sum("pro_sid__results__encuestas_totales"),
-                encuestas_cubiertas=Sum("pri_sid__results__encuestas_cubiertas")
-                + Sum("sec_sid__results__encuestas_cubiertas")
-                + Sum("pro_sid__results__encuestas_cubiertas"),
-                encuestas_incompletas=Sum("pri_sid__results__encuestas_incompletas")
-                + Sum("sec_sid__results__encuestas_incompletas")
-                + Sum("pro_sid__results__encuestas_incompletas"),
-                total_centros=Count("id"),
+        # Subqueries for the latest 'encuestas_totales'
+        latest_pri_totales = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pri_sid')
+        ).order_by('-date').values('encuestas_totales')[:1]
+        latest_sec_totales = EncuestaResult.objects.filter(
+            encuesta=OuterRef('sec_sid')
+        ).order_by('-date').values('encuestas_totales')[:1]
+        latest_pro_totales = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pro_sid')
+        ).order_by('-date').values('encuestas_totales')[:1]
+
+        # Subqueries for the latest 'encuestas_cubiertas'
+        latest_pri_cubiertas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pri_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+        latest_sec_cubiertas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('sec_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+        latest_pro_cubiertas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pro_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+
+        # Subqueries for the latest 'encuestas_incompletas'
+        latest_pri_incompletas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pri_sid')
+        ).order_by('-date').values('encuestas_incompletas')[:1]
+        latest_sec_incompletas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('sec_sid')
+        ).order_by('-date').values('encuestas_incompletas')[:1]
+        latest_pro_incompletas = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pro_sid')
+        ).order_by('-date').values('encuestas_incompletas')[:1]
+
+        # Annotate each Colegio with its most recent results per encuesta field.
+        colegios_qs = Colegio.objects.annotate(
+            pri_totales=Coalesce(Subquery(latest_pri_totales, output_field=IntegerField()), Value(0)),
+            sec_totales=Coalesce(Subquery(latest_sec_totales, output_field=IntegerField()), Value(0)),
+            pro_totales=Coalesce(Subquery(latest_pro_totales, output_field=IntegerField()), Value(0)),
+            
+            pri_cubiertas=Coalesce(Subquery(latest_pri_cubiertas, output_field=IntegerField()), Value(0)),
+            sec_cubiertas=Coalesce(Subquery(latest_sec_cubiertas, output_field=IntegerField()), Value(0)),
+            pro_cubiertas=Coalesce(Subquery(latest_pro_cubiertas, output_field=IntegerField()), Value(0)),
+            
+            pri_incompletas=Coalesce(Subquery(latest_pri_incompletas, output_field=IntegerField()), Value(0)),
+            sec_incompletas=Coalesce(Subquery(latest_sec_incompletas, output_field=IntegerField()), Value(0)),
+            pro_incompletas=Coalesce(Subquery(latest_pro_incompletas, output_field=IntegerField()), Value(0)),
+        ).annotate(
+            # Sum the values from each encuesta relationship
+            encuestas_totales=F('pri_totales') + F('sec_totales') + F('pro_totales'),
+            encuestas_cubiertas=F('pri_cubiertas') + F('sec_cubiertas') + F('pro_cubiertas'),
+            encuestas_incompletas=F('pri_incompletas') + F('sec_incompletas') + F('pro_incompletas')
+        )
+
+        # Group the data by comunidad_autonoma.
+        colegios = colegios_qs.values('comunidad_autonoma').annotate(
+            total_centros=Count('id'),
+            encuestas_totales=Sum('encuestas_totales'),
+            encuestas_cubiertas=Sum('encuestas_cubiertas'),
+            encuestas_incompletas=Sum('encuestas_incompletas'),
+        ).annotate(
+            porcentaje=ExpressionWrapper(
+                F('encuestas_cubiertas') * 100.0 / F('encuestas_totales'),
+                output_field=FloatField()
             )
-            .annotate(
-                porcentaje=ExpressionWrapper(
-                    F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
-                    output_field=FloatField(),
-                )
-            )
-            .values(
-                "comunidad_autonoma",
-                "encuestas_totales",
-                "encuestas_cubiertas",
-                "encuestas_incompletas",
-                "porcentaje",
-                "total_centros",
-            )
+        ).values(
+            "comunidad_autonoma",
+            "encuestas_totales",
+            "encuestas_cubiertas",
+            "encuestas_incompletas",
+            "porcentaje",
+            "total_centros",
         )
 
         # Create the HttpResponse object with the appropriate CSV header.
@@ -421,31 +463,42 @@ class ColegioViewSet(viewsets.ModelViewSet):
                     colegio["total_centros"],
                 ]
             )
-        response = update_ccaa_names_in_csv(response)
-        response = sort_csv_by_comunidad(response)
+        response = update_ccaa_names_in_csv(response, filename="completitud_by_comunidad.csv")
+        response = sort_csv_by_comunidad(response, filename="completitud_by_comunidad.csv")
         return response
     
     @action(detail=False, methods=["get"])
     def generate_csv_previstas_by_comunidad(self, request, *args, **kwargs):
         """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
-        # Query the database to get the required data
-        colegios = (
-            Colegio.objects.values("comunidad_autonoma")
-            .annotate(
-                realizadas=Coalesce(
-                    Sum("pri_sid__results__encuestas_cubiertas")
-                    + Sum("sec_sid__results__encuestas_cubiertas")
-                    + Sum("pro_sid__results__encuestas_cubiertas"), 
-                    Value(0)
-                ),
-                centros_actuales=Count("id"),
-            )
-            .values(
-                "comunidad_autonoma",
-                "realizadas",
-                "centros_actuales",
-            )
+        
+        # Subqueries to get the most recent EncuestaResult for each encuesta field
+        latest_pri = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pri_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+
+        latest_sec = EncuestaResult.objects.filter(
+            encuesta=OuterRef('sec_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+
+        latest_pro = EncuestaResult.objects.filter(
+            encuesta=OuterRef('pro_sid')
+        ).order_by('-date').values('encuestas_cubiertas')[:1]
+
+        # Annotate each Colegio with its latest results
+        colegios_qs = Colegio.objects.annotate(
+            pri_realizadas=Coalesce(Subquery(latest_pri, output_field=IntegerField()), Value(0)),
+            sec_realizadas=Coalesce(Subquery(latest_sec, output_field=IntegerField()), Value(0)),
+            pro_realizadas=Coalesce(Subquery(latest_pro, output_field=IntegerField()), Value(0)),
+        ).annotate(
+            # Sum the latest results from the three related encuestas
+            realizadas=F('pri_realizadas') + F('sec_realizadas') + F('pro_realizadas')
         )
+
+        # Group by comunidad_autonoma and aggregate over colegios
+        colegios = colegios_qs.values('comunidad_autonoma').annotate(
+            centros_actuales=Count('id'),
+            realizadas=Sum('realizadas')
+        ).values('comunidad_autonoma', 'realizadas', 'centros_actuales')
 
         # Create the HttpResponse object with the appropriate CSV header.
         response = HttpResponse(content_type="text/csv")
@@ -521,37 +574,37 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 f"{total_porcentaje1:.2f}%",
             ]
         )
-        response = update_ccaa_names_in_csv(response)
-        response = sort_csv_by_comunidad(response)
+        response = update_ccaa_names_in_csv(response, filename="previstas_by_comunidad.csv")
+        response = sort_csv_by_comunidad(response, filename="previstas_by_comunidad.csv")
         return response
 
 @csrf_exempt
 @require_GET
 def update_csv_completitud_by_comunidad(request):
     
-    response = ColegioViewSet.generate_csv_completitud_by_comunidad(request)
+    response = ColegioViewSet().generate_csv_completitud_by_comunidad(request)
     
     # Upload csv_data to github
     csv_data =  response.getvalue()
     logging.debug(f"update_csv_completitud_by_comunidad. csv_data: {csv_data}")
     push_to_gh_repo(csv_data=csv_data, file_path="data/completitud_by_comunidad.csv")
     
-    return None
+    return HttpResponse("CSV updated successfully")
 
 @csrf_exempt
 @require_GET
 def update_csv_previstas_by_comunidad(request):
     
-    response = ColegioViewSet.generate_csv_previstas_by_comunidad(request)
+    response = ColegioViewSet().generate_csv_previstas_by_comunidad(request)
     
     # Upload csv_data to github
     csv_data =  response.getvalue()
     logging.debug(f"update_csv_previstas_by_comunidad. csv_data: {csv_data}")
     push_to_gh_repo(csv_data=csv_data, file_path="data/previstas_by_comunidad.csv")
     
-    return None
+    return HttpResponse("CSV updated successfully")
 
-def update_ccaa_names_in_csv(response):
+def update_ccaa_names_in_csv(response, filename="colegios_data.csv"):
     """Update the names in the CCAA column of given CSV based on a constant dictionary."""
     # Get the CSV data from the generate_csv_previstas_by_comunidad method
     csv_data = response.content.decode('utf-8')
@@ -574,14 +627,14 @@ def update_ccaa_names_in_csv(response):
 
     # Create the HttpResponse object with the updated CSV data
     updated_response = HttpResponse(content_type="text/csv")
-    updated_response["Content-Disposition"] = 'attachment; filename="updated_previstas_by_comunidad.csv"'
+    updated_response["Content-Disposition"] = f'attachment; filename={filename}'
 
     writer = csv.writer(updated_response)
     writer.writerows(updated_rows)
 
     return updated_response
 
-def sort_csv_by_comunidad(response):
+def sort_csv_by_comunidad(response, filename="sorted_colegios_data.csv"):
     """Sort the rows of a CSV file alphabetically by the CCAA or comunidad_autonoma column."""
     # Get the CSV data from the update_ccaa_names_in_csv method
     csv_data = response.content.decode('utf-8')
@@ -607,7 +660,7 @@ def sort_csv_by_comunidad(response):
 
     # Create the HttpResponse object with the sorted CSV data
     sorted_response = HttpResponse(content_type="text/csv")
-    sorted_response["Content-Disposition"] = 'attachment; filename="sorted_previstas_by_comunidad.csv"'
+    sorted_response["Content-Disposition"] = f'attachment; filename={filename}'
 
     writer = csv.writer(sorted_response)
     writer.writerow(header)
