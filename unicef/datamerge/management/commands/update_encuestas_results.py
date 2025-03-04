@@ -12,17 +12,16 @@ API_LIMESURVEY = os.getenv("API_LIMESURVEY")
 INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
 INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Command(BaseCommand):
     help = 'Update Encuesta results daily'
 
     def handle(self, *args, **kwargs):
-        today = timezone.now().date()
         encuestas = Encuesta.objects.all()
-        print(f"API_LIMESURVEY: {API_LIMESURVEY}")
-        print(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
-        print(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
+        logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+        logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+        logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
         for encuesta in encuestas:
             encuesta_sid = encuesta.sid
             self.stdout.write(self.style.SUCCESS(f'Updating Encuesta results for {encuesta_sid}'))

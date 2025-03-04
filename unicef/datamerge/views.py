@@ -87,7 +87,7 @@ CCAA_NAME_MAPPINGS = {
     "MURCIA": "REGIÓN DE MURCIA"
 }
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
 
