@@ -20,7 +20,6 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         today = timezone.now().date()
         encuestas = Encuesta.objects.all()
-        encuestas = []
         print(f"API_LIMESURVEY: {API_LIMESURVEY}")
         print(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
         print(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")

@@ -685,10 +685,10 @@ def push_to_gh_repo(csv_data, file_path="data/test/colegios_data.csv", commit_me
     print(f"github token: {GITHUB_TOKEN}")
     print(f"repo: {repo}")
 
-    # try:
-    #     # Get the file if it exists
-    #     contents = repo.get_contents(file_path)
-    #     repo.update_file(contents.path, commit_message, csv_data, contents.sha)
-    # except Exception as e:
-    #     # If the file does not exist, create it
-    #     repo.create_file(file_path, commit_message, csv_data)
+    try:
+        # Get the file if it exists
+        contents = repo.get_contents(file_path)
+        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
+    except Exception as e:
+        # If the file does not exist, create it
+        repo.create_file(file_path, commit_message, csv_data)
