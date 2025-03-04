@@ -23,12 +23,13 @@ import logging
 import csv
 import re
 import io
+import os
 from io import StringIO
 from github import Github
 from dotenv import load_dotenv
 from django.utils import timezone
 
-GITHUB_TOKEN= '########################################'
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 # Hardcoded values for previstas and centros_previstos
 PREVISTAS = {
     "ANDALUCÍA": 14271,
@@ -680,11 +681,14 @@ def push_to_gh_repo(csv_data, file_path="data/test/colegios_data.csv", commit_me
 
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(repo_name)
+    
+    print(f"github token: {GITHUB_TOKEN}")
+    print(f"repo: {repo}")
 
-    try:
-        # Get the file if it exists
-        contents = repo.get_contents(file_path)
-        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
-    except Exception as e:
-        # If the file does not exist, create it
-        repo.create_file(file_path, commit_message, csv_data)
+    # try:
+    #     # Get the file if it exists
+    #     contents = repo.get_contents(file_path)
+    #     repo.update_file(contents.path, commit_message, csv_data, contents.sha)
+    # except Exception as e:
+    #     # If the file does not exist, create it
+    #     repo.create_file(file_path, commit_message, csv_data)

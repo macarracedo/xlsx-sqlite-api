@@ -6,10 +6,11 @@ from unicef.datamerge.views import update_csv_completitud_by_comunidad, update_c
 from django.test import RequestFactory
 import requests
 import logging
+import os
 
-API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
-INTERNAL_LS_USER = "ccii"
-INTERNAL_LS_PASS = "ccii2024"
+API_LIMESURVEY = os.getenv("API_LIMESURVEY")
+INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
+INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -19,6 +20,10 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         today = timezone.now().date()
         encuestas = Encuesta.objects.all()
+        encuestas = []
+        print(f"API_LIMESURVEY: {API_LIMESURVEY}")
+        print(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+        print(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
         for encuesta in encuestas:
             encuesta_sid = encuesta.sid
             self.stdout.write(self.style.SUCCESS(f'Updating Encuesta results for {encuesta_sid}'))
