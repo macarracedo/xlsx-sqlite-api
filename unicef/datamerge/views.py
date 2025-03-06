@@ -658,6 +658,11 @@ def sort_csv_by_comunidad(response, filename="sorted_colegios_data.csv"):
 
     # Sort the data rows alphabetically by the identified column
     sorted_data_rows = sorted(data_rows, key=lambda row: row[sort_index])
+    
+    # Move the last row to the top
+    if sorted_data_rows:
+        last_row = sorted_data_rows.pop()
+        sorted_data_rows.insert(0, last_row)
 
     # Create the HttpResponse object with the sorted CSV data
     sorted_response = HttpResponse(content_type="text/csv")
