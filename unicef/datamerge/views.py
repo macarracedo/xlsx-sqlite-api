@@ -452,6 +452,12 @@ class ColegioViewSet(viewsets.ModelViewSet):
             ]
         )
 
+        # Initialize totals
+        total_encuestas_totales = 0
+        total_encuestas_cubiertas = 0
+        total_encuestas_incompletas = 0
+        total_total_centros = 0
+
         # Write data rows
         for colegio in colegios:
             writer.writerow(
@@ -464,6 +470,26 @@ class ColegioViewSet(viewsets.ModelViewSet):
                     colegio["total_centros"],
                 ]
             )
+            # Accumulate totals
+            total_encuestas_totales += colegio["encuestas_totales"]
+            total_encuestas_cubiertas += colegio["encuestas_cubiertas"]
+            total_encuestas_incompletas += colegio["encuestas_incompletas"]
+            total_total_centros += colegio["total_centros"]
+
+        # Calculate total percentage
+        total_porcentaje = (total_encuestas_cubiertas * 100.0 / total_encuestas_totales) if total_encuestas_totales > 0 else 0
+
+        # Write totals row
+        writer.writerow(
+            [
+                "Totales",
+                total_encuestas_totales,
+                total_encuestas_cubiertas,
+                total_encuestas_incompletas,
+                total_porcentaje,
+                total_total_centros,
+            ]
+        )
         response = update_ccaa_names_in_csv(response, filename="completitud_by_comunidad.csv")
         response = sort_csv_by_comunidad(response, filename="completitud_by_comunidad.csv")
         return response
