@@ -475,15 +475,15 @@ class ColegioViewSet(viewsets.ModelViewSet):
         # Subqueries to get the most recent EncuestaResult for each encuesta field
         latest_pri = EncuestaResult.objects.filter(
             encuesta=OuterRef('pri_sid')
-        ).order_by('-date').values('encuestas_cubiertas')[:1]
+        ).order_by('-date').values('encuestas_totales')[:1]
 
         latest_sec = EncuestaResult.objects.filter(
             encuesta=OuterRef('sec_sid')
-        ).order_by('-date').values('encuestas_cubiertas')[:1]
+        ).order_by('-date').values('encuestas_totales')[:1]
 
         latest_pro = EncuestaResult.objects.filter(
             encuesta=OuterRef('pro_sid')
-        ).order_by('-date').values('encuestas_cubiertas')[:1]
+        ).order_by('-date').values('encuestas_totales')[:1]
 
         # Annotate each Colegio with its latest results
         colegios_qs = Colegio.objects.annotate(
