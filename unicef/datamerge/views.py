@@ -721,6 +721,19 @@ def update_csv_previstas_by_comunidad(request):
     
     return HttpResponse("CSV updated successfully")
 
+@csrf_exempt
+@require_GET
+def update_csv_historico_by_encuesta(request):
+    
+    response = ColegioViewSet().generate_csv_historico_by_encuesta(request)
+    
+    # Upload csv_data to github
+    csv_data =  response.getvalue()
+    logging.debug(f"update_csv_historico_by_encuesta. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/historico_by_encuesta.csv")
+    
+    return HttpResponse("CSV updated successfully")
+
 def update_ccaa_names_in_csv(response, filename="colegios_data.csv"):
     """Update the names in the CCAA column of given CSV based on a constant dictionary."""
     # Get the CSV data from the generate_csv_previstas_by_comunidad method
