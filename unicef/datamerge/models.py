@@ -38,4 +38,4 @@ class EncuestaResult(models.Model):
         unique_together = ('encuesta', 'date')
 
     def __str__(self):
-        return f"{self.encuesta.sid} - {self.date}"
+        return f"{self.encuesta.sid} - {self.date} [c({self.encuestas_cubiertas}) i({self.encuestas_incompletas}) t({self.encuestas_totales})]"
