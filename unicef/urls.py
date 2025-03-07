@@ -31,4 +31,6 @@ urlpatterns = [
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("update_csv_completitud_by_comunidad/", views.update_csv_completitud_by_comunidad, name="update_csv_completitud_by_comunidad"),
     path("update_csv_previstas_by_comunidad/", views.update_csv_previstas_by_comunidad, name="update_csv_previstas_by_comunidad"),
+    path("update_csv_historico_by_encuesta/", views.update_csv_historico_by_encuesta, name="update_csv_historico_by_encuesta"),
+    path("update_csv_datetime_last_update/", views.update_csv_datetime_last_update, name="update_csv_datetime_last_update"),
 ]
