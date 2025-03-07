@@ -605,6 +605,96 @@ class ColegioViewSet(viewsets.ModelViewSet):
         response = sort_csv_by_comunidad(response, filename="previstas_by_comunidad.csv")
         return response
 
+    @action(detail=False, methods=["get"])
+    def generate_csv_historico_by_encuesta(self, request, *args, **kwargs):
+        """Generate a CSV file with historical data for each encuesta."""
+    
+        # Get all colegios with their related encuestas
+        colegios = Colegio.objects.select_related('pri_sid', 'sec_sid', 'pro_sid')
+
+        # Create the HttpResponse object with the appropriate CSV header.
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="historico_by_encuesta.csv"'
+
+        writer = csv.writer(response)
+        # Write the header row
+        writer.writerow(
+            [
+                "Centro",
+                "Tipologia",
+                "Id encuesta",
+                "Total Encuestas",
+                "Total Completas",
+                "Total Parciales",
+                "Nuevas Completas Hoy",
+                "Nuevas Parciales Hoy",
+                "Nuevas Completas Ayer",
+                "Nuevas Parciales Ayer",
+                "Nuevas Completas Anteayer",
+                "Nuevas Parciales Anteayer",
+            ]
+        )
+
+        # Helper function to get the latest results for an encuesta
+        def get_latest_results(encuesta, days=3):
+            results = EncuestaResult.objects.filter(encuesta=encuesta).order_by('-date')[:days+1]
+            return results
+
+        # Helper function to calculate differences
+        def calculate_differences(results, days=3):
+            differences = {
+                'completas': [],
+                'parciales': []
+            }
+            print(f"recieved results: {[str(result) for result in results]}")
+            for i in range(days):
+                print(f"i (day): {i}")
+                if i < len(results):
+                    if i + 1 < len(results):
+                        completas_diff = results[i].encuestas_cubiertas - results[i + 1].encuestas_cubiertas
+                        parciales_diff = results[i].encuestas_incompletas - results[i + 1].encuestas_incompletas
+                    else:
+                        completas_diff = results[i].encuestas_cubiertas
+                        parciales_diff = results[i].encuestas_incompletas
+                else:
+                    completas_diff = -1
+                    parciales_diff = -1
+                differences['completas'].append(completas_diff)
+                differences['parciales'].append(parciales_diff)
+            print(f"returning differences: {differences}")
+            return differences
+
+        # Write data rows
+        for colegio in colegios:
+            for encuesta in [colegio.pri_sid, colegio.sec_sid, colegio.pro_sid]:
+                if encuesta:
+                    results = get_latest_results(encuesta)
+                    if results:
+                        total_encuestas = results[0].encuestas_totales
+                        completas = results[0].encuestas_cubiertas
+                        parciales = results[0].encuestas_incompletas
+                        print(f"calculating differences for {encuesta.sid} of colegio {colegio.nombre}")
+                        differences = calculate_differences(results)
+
+                        writer.writerow(
+                            [
+                                colegio.nombre,
+                                "Primaria" if encuesta == colegio.pri_sid else "Secundaria" if encuesta == colegio.sec_sid else "Profesorado",
+                                encuesta.sid,
+                                total_encuestas,
+                                completas,
+                                parciales,
+                                differences['completas'][0] if len(differences['completas']) > 0 else -1,
+                                differences['parciales'][0] if len(differences['parciales']) > 0 else -1,
+                                differences['completas'][1] if len(differences['completas']) > 1 else -1,
+                                differences['parciales'][1] if len(differences['parciales']) > 1 else -1,
+                                differences['completas'][2] if len(differences['completas']) > 2 else -1,
+                                differences['parciales'][2] if len(differences['parciales']) > 2 else -1,
+                            ]
+                        )
+
+        return response
+        
 @csrf_exempt
 @require_GET
 def update_csv_completitud_by_comunidad(request):
