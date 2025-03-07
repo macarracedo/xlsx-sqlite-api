@@ -647,9 +647,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 'completas': [],
                 'parciales': []
             }
-            print(f"recieved results: {[str(result) for result in results]}")
             for i in range(days):
-                print(f"i (day): {i}")
                 if i < len(results):
                     if i + 1 < len(results):
                         completas_diff = results[i].encuestas_cubiertas - results[i + 1].encuestas_cubiertas
@@ -658,11 +656,10 @@ class ColegioViewSet(viewsets.ModelViewSet):
                         completas_diff = results[i].encuestas_cubiertas
                         parciales_diff = results[i].encuestas_incompletas
                 else:
-                    completas_diff = -1
-                    parciales_diff = -1
+                    completas_diff = ''
+                    parciales_diff = ''
                 differences['completas'].append(completas_diff)
                 differences['parciales'].append(parciales_diff)
-            print(f"returning differences: {differences}")
             return differences
 
         # Write data rows
@@ -674,7 +671,6 @@ class ColegioViewSet(viewsets.ModelViewSet):
                         total_encuestas = results[0].encuestas_totales
                         completas = results[0].encuestas_cubiertas
                         parciales = results[0].encuestas_incompletas
-                        print(f"calculating differences for {encuesta.sid} of colegio {colegio.nombre}")
                         differences = calculate_differences(results)
 
                         writer.writerow(
