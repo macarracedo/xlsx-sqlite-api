@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import psycopg2
+from psycopg2 import OperationalError
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,22 +77,38 @@ WSGI_APPLICATION = "unicef.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    "default":{
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "unicef",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "10.10.10.129",
-        "PORT": "5432",
-    },
-    # Add sqlite3 as a second database
-    "sqlite3": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
+def get_database_config():
+    try:
+        # Try to connect to the PostgreSQL database
+        conn = psycopg2.connect(
+            dbname="unicef",
+            user="postgres",
+            password="postgres",
+            host="10.10.10.129",
+            port="5432"
+        )
+        conn.close()
+        # If connection is successful, return PostgreSQL config
+        return {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": "unicef",
+                "USER": "postgres",
+                "PASSWORD": "postgres",
+                "HOST": "10.10.10.129",
+                "PORT": "5432",
+            }
+        }
+    except OperationalError:
+        # If connection fails, return SQLite config
+        return {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+            }
+        }
 
+DATABASES = get_database_config()
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
