@@ -2,9 +2,10 @@ import requests
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets, status, views
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_GET
 from rest_framework.decorators import action
 from django.http import JsonResponse, HttpResponse
+from django.test import RequestFactory
 from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
@@ -691,6 +692,21 @@ class ColegioViewSet(viewsets.ModelViewSet):
                         )
 
         return response
+    
+    @action(detail=False, methods=["get"])
+    def update_only_csvs(request):
+        """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
+        logging.info('Generating and updating CSV files to GitHub...')
+        factory = RequestFactory()
+        request = factory.get('/')
+
+        update_csv_completitud_by_comunidad(request)
+        update_csv_previstas_by_comunidad(request)
+        update_csv_historico_by_encuesta(request)
+        update_csv_datetime_last_update(request)
+
+        logging.info('Successfully generated and updated CSV files in GitHub')
+        return HttpResponse("CSV files updated successfully")
         
 @csrf_exempt
 @require_GET
