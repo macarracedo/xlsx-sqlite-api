@@ -27,8 +27,8 @@ import os
 from io import StringIO
 from github import Github
 from dotenv import load_dotenv
-from django.utils import timezone
 from datetime import datetime
+import pytz
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 # Hardcoded values for previstas and centros_previstos
@@ -734,7 +734,7 @@ def update_csv_historico_by_encuesta(request):
 @csrf_exempt
 @require_GET
 def update_csv_datetime_last_update(request):
-    now = datetime.now()
+    now = datetime.now(pytz.timezone('Europe/Madrid'))
     current_time = now.strftime("%Y-%m-%d %H:%M:%S")
     logging.debug(f"update_csv_datetime_last_update. current_time: {current_time}")
     # create simple csv with current time
