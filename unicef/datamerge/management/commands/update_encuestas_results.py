@@ -72,6 +72,6 @@ class Command(BaseCommand):
         update_csv_completitud_by_comunidad(request)
         update_csv_previstas_by_comunidad(request)
         update_csv_historico_by_encuesta(request)
-        update_csv_datetime_last_update()
+        update_csv_datetime_last_update(request)
 
         self.stdout.write(self.style.SUCCESS('Successfully generated and updated CSV files in GitHub'))        
