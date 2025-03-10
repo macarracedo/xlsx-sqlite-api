@@ -19,6 +19,33 @@ INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 
 logging.basicConfig(level=logging.INFO)
 
+def update_or_create_encuesta_result(encuesta, data_externa):
+    # Set timezone to Madrid
+    timezone.activate("Europe/Madrid")
+    madrid_tz = timezone.get_current_timezone()
+    now = timezone.localtime(timezone.now(), madrid_tz)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Check if there is already an EncuestaResult for today
+    encuesta_result, created = EncuestaResult.objects.update_or_create(
+        encuesta=encuesta,
+        date__range=(today_start, today_end),
+        defaults={
+            "date": now,
+            "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
+            "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
+            "encuestas_totales": data_externa.get("Encuesta", {}).get("Encuestas totales"),
+        }
+    )
+
+    if created:
+        logging.info(f"Created new EncuestaResult for {encuesta.sid} on {now.date()}")
+    else:
+        logging.info(f"Updated existing EncuestaResult for {encuesta.sid} on {now.date()}")
+
+    return encuesta_result
+
 class Command(BaseCommand):
     help = 'Update Encuesta results daily'
 
@@ -44,16 +71,7 @@ class Command(BaseCommand):
                 encuesta = Encuesta.objects.get(sid=encuesta_sid)
 
                 # Update or create the daily result
-                now = timezone.now()
-                EncuestaResult.objects.update_or_create(
-                    encuesta=encuesta,
-                    date=now,
-                    defaults={
-                        "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
-                        "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
-                        "encuestas_totales": data_externa.get("Encuesta", {}).get("Encuestas totales"),
-                    }
-                )
+                update_or_create_encuesta_result(encuesta, data_externa)
 
             except requests.RequestException as ex:
                 self.stderr.write(self.style.ERROR(f"Error en la petición al servicio externo, {str(ex)}"))

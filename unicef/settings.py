@@ -13,10 +13,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import psycopg2
 from psycopg2 import OperationalError
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -85,7 +85,8 @@ def get_database_config():
             user="postgres",
             password="postgres",
             host="10.10.10.129",
-            port="5432"
+            port="5432",
+            connect_timeout=5  # Set the timeout to 5 seconds
         )
         conn.close()
         # If connection is successful, return PostgreSQL config
