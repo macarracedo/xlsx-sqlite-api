@@ -20,7 +20,10 @@ INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 logging.basicConfig(level=logging.INFO)
 
 def update_or_create_encuesta_result(encuesta, data_externa):
-    now = timezone.now()
+    # Set timezone to Madrid
+    timezone.activate("Europe/Madrid")
+    madrid_tz = timezone.get_current_timezone()
+    now = timezone.localtime(timezone.now(), madrid_tz)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
 
