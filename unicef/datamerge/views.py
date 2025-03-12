@@ -753,7 +753,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=["get"])
-    def generate_csv_historico_by_encuesta(self, request, *args, **kwargs):
+    def generate_csv_historico_by_encuesta(self, request, back_days=3, *args, **kwargs, ):
         """Generate a CSV file with historical data for each encuesta."""
         back_days = 3
         # Get all colegios with their related encuestas
@@ -853,10 +853,11 @@ class ColegioViewSet(viewsets.ModelViewSet):
         """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
         logging.info("Generating and updating CSV files to GitHub...")
 
-        update_csv_completitud_by_comunidad(request)
-        update_csv_previstas_by_comunidad(request)
-        update_csv_historico_by_encuesta(request)
-        update_csv_datetime_last_update(request)
+        # update_csv_completitud_by_comunidad(request)
+        # update_csv_previstas_by_comunidad(request)
+        update_csv_historico_by_encuesta(request, back_days=3)
+        update_csv_historico_by_encuesta(request, back_days=10)
+        # update_csv_datetime_last_update(request)
 
         logging.info("Successfully generated and updated CSV files in GitHub")
         return HttpResponse("CSV files updated successfully")
@@ -892,14 +893,14 @@ def update_csv_previstas_by_comunidad(request):
 
 @csrf_exempt
 @require_GET
-def update_csv_historico_by_encuesta(request):
+def update_csv_historico_by_encuesta(request, back_days):
 
-    response = ColegioViewSet().generate_csv_historico_by_encuesta(request)
+    response = ColegioViewSet().generate_csv_historico_by_encuesta(request, back_days=back_days)
 
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_historico_by_encuesta. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/historico_by_encuesta.csv")
+    push_to_gh_repo(csv_data=csv_data, file_path=f"data/historico_{back_days}_by_encuesta.csv")
 
     return HttpResponse("historico CSV updated successfully")
 
