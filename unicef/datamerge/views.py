@@ -933,11 +933,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
         """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
         logging.info("Generating and updating CSV files to GitHub...")
 
-        # update_csv_completitud_by_comunidad(request)
-        # update_csv_previstas_by_comunidad(request)
+        update_csv_completitud_by_comunidad(request)
+        update_csv_previstas_by_comunidad(request)
         update_csv_historico_by_encuesta(request, back_days=3)
         update_csv_historico_by_encuesta(request, back_days=10)
-        # update_csv_datetime_last_update(request)
+        update_csv_historico_by_encuesta(request, back_days=30)
+        update_csv_tipologia_by_ccaa(request)
+        update_csv_datetime_last_update(request)
 
         logging.info("Successfully generated and updated CSV files in GitHub")
         return HttpResponse("CSV files updated successfully")
@@ -983,6 +985,19 @@ def update_csv_historico_by_encuesta(request, back_days):
     push_to_gh_repo(csv_data=csv_data, file_path=f"data/historico_{back_days}_by_encuesta.csv")
 
     return HttpResponse("historico CSV updated successfully")
+
+@csrf_exempt
+@require_GET
+def update_csv_tipologia_by_ccaa(request):
+    
+    response = ColegioViewSet().generate_csv_tipologia_by_ccaa(request)
+
+    # Upload csv_data to github
+    csv_data = response.getvalue()
+    logging.debug(f"update_csv_tipologia_by_ccaa. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/tipologia_by_comunidad.csv")
+
+    return HttpResponse("tipologia CSV updated successfully")
 
 
 @csrf_exempt
