@@ -913,6 +913,12 @@ class ColegioViewSet(viewsets.ModelViewSet):
             ]
         )
 
+        # Initialize totals
+        total_primaria = 0
+        total_secundaria = 0
+        total_profesorado = 0
+        total_conjunto = 0
+
         # Write data rows
         for colegio in colegios:
             writer.writerow(
@@ -924,6 +930,29 @@ class ColegioViewSet(viewsets.ModelViewSet):
                     colegio["total_conjunto"],
                 ]
             )
+            # Accumulate totals
+            total_primaria += colegio["total_primaria"]
+            total_secundaria += colegio["total_secundaria"]
+            total_profesorado += colegio["total_profesorado"]
+            total_conjunto += colegio["total_conjunto"]
+
+        # Write totals row
+        writer.writerow(
+            [
+                "Totales",
+                total_primaria,
+                total_secundaria,
+                total_profesorado,
+                total_conjunto,
+            ]
+        )
+        
+        response = update_ccaa_names_in_csv(
+            response, filename="tipologia_by_comunidad.csv"
+        )
+        response = sort_csv_by_comunidad(
+            response, filename="tipologia_by_comunidad.csv"
+        )
 
         return response
 
@@ -1060,6 +1089,8 @@ def sort_csv_by_comunidad(response, filename="sorted_colegios_data.csv"):
         sort_index = header.index("CCAA")
     elif "comunidad" in header:
         sort_index = header.index("comunidad")
+    elif "comunidad_autonoma" in header:
+        sort_index = header.index("comunidad_autonoma")
     else:
         # If neither column is found, return the original response
         return response
@@ -1069,8 +1100,10 @@ def sort_csv_by_comunidad(response, filename="sorted_colegios_data.csv"):
 
     # Move the last row to the top
     if sorted_data_rows:
+        print("sorted_data_rows: ", sorted_data_rows)
         last_row = sorted_data_rows.pop()
         sorted_data_rows.insert(0, last_row)
+        print("sorted_data_rows: ", sorted_data_rows)
 
     # Create the HttpResponse object with the sorted CSV data
     sorted_response = HttpResponse(content_type="text/csv")
