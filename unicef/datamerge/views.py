@@ -755,7 +755,6 @@ class ColegioViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def generate_csv_historico_by_encuesta(self, request, back_days=3, *args, **kwargs, ):
         """Generate a CSV file with historical data for each encuesta."""
-        back_days = 3
         # Get all colegios with their related encuestas
         colegios = Colegio.objects.select_related("pri_sid", "sec_sid", "pro_sid")
 
