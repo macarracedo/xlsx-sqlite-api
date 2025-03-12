@@ -905,11 +905,11 @@ class ColegioViewSet(viewsets.ModelViewSet):
         # Write the header row
         writer.writerow(
             [
-                "comunidad_autonoma",
-                "realizadas_primaria",
-                "realizadas_secundaria",
-                "realizadas_profesorado",
-                "realizadas_total",
+                "CCAA",
+                "Realizadas Primaria",
+                "Realizadas Secundaria",
+                "Realizadas Profesorado",
+                "Realizadas Total",
             ]
         )
 
