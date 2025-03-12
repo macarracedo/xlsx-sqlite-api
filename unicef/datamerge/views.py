@@ -849,6 +849,86 @@ class ColegioViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=["get"])
+    def generate_csv_tipologia_by_ccaa(self, request, *args, **kwargs):
+        """Generate a CSV file from data stored in the database, grouped by comunidad autónoma and tipología."""
+
+        # Subqueries to get the most recent EncuestaResult for each encuesta field
+        latest_pri = (
+            EncuestaResult.objects.filter(encuesta=OuterRef("pri_sid"))
+            .order_by("-date")
+            .values("encuestas_totales")[:1]
+        )
+
+        latest_sec = (
+            EncuestaResult.objects.filter(encuesta=OuterRef("sec_sid"))
+            .order_by("-date")
+            .values("encuestas_totales")[:1]
+        )
+
+        latest_pro = (
+            EncuestaResult.objects.filter(encuesta=OuterRef("pro_sid"))
+            .order_by("-date")
+            .values("encuestas_totales")[:1]
+        )
+
+        # Annotate each Colegio with its latest results
+        colegios_qs = Colegio.objects.annotate(
+            pri_realizadas=Coalesce(
+                Subquery(latest_pri, output_field=IntegerField()), Value(0)
+            ),
+            sec_realizadas=Coalesce(
+                Subquery(latest_sec, output_field=IntegerField()), Value(0)
+            ),
+            pro_realizadas=Coalesce(
+                Subquery(latest_pro, output_field=IntegerField()), Value(0)
+            ),
+        )
+
+        # Group by comunidad_autonoma and aggregate over colegios
+        colegios = (
+            colegios_qs.values("comunidad_autonoma")
+            .annotate(
+                total_primaria=Sum("pri_realizadas"),
+                total_secundaria=Sum("sec_realizadas"),
+                total_profesorado=Sum("pro_realizadas"),
+            )
+            .annotate(
+                total_conjunto=F("total_primaria") + F("total_secundaria") + F("total_profesorado")
+            )
+            .values("comunidad_autonoma", "total_primaria", "total_secundaria", "total_profesorado", "total_conjunto")
+        )
+
+        # Create the HttpResponse object with the appropriate CSV header.
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="tipologia_by_comunidad.csv"'
+
+        writer = csv.writer(response)
+        # Write the header row
+        writer.writerow(
+            [
+                "comunidad_autonoma",
+                "realizadas_primaria",
+                "realizadas_secundaria",
+                "realizadas_profesorado",
+                "realizadas_total",
+            ]
+        )
+
+        # Write data rows
+        for colegio in colegios:
+            writer.writerow(
+                [
+                    colegio["comunidad_autonoma"],
+                    colegio["total_primaria"],
+                    colegio["total_secundaria"],
+                    colegio["total_profesorado"],
+                    colegio["total_conjunto"],
+                ]
+            )
+
+        return response
+
+    @action(detail=False, methods=["get"])
     def update_only_csvs(self, request, *args, **kwargs):
         """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
         logging.info("Generating and updating CSV files to GitHub...")
