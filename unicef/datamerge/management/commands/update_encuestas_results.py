@@ -6,7 +6,8 @@ from unicef.datamerge.views import (
     update_csv_completitud_by_comunidad,
     update_csv_previstas_by_comunidad,
     update_csv_historico_by_encuesta,
-    update_csv_datetime_last_update
+    update_csv_datetime_last_update,
+    update_csv_tipologia_by_ccaa
 )
 from django.test import RequestFactory
 import requests
@@ -89,7 +90,10 @@ class Command(BaseCommand):
 
         update_csv_completitud_by_comunidad(request)
         update_csv_previstas_by_comunidad(request)
-        update_csv_historico_by_encuesta(request)
+        update_csv_historico_by_encuesta(request, back_days=3)
+        update_csv_historico_by_encuesta(request, back_days=10)
+        update_csv_historico_by_encuesta(request, back_days=30)
+        update_csv_tipologia_by_ccaa(request)
         update_csv_datetime_last_update(request)
 
         self.stdout.write(self.style.SUCCESS('Successfully generated and updated CSV files in GitHub'))        
