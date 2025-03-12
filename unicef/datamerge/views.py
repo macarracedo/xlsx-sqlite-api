@@ -913,6 +913,12 @@ class ColegioViewSet(viewsets.ModelViewSet):
             ]
         )
 
+        # Initialize totals
+        total_primaria = 0
+        total_secundaria = 0
+        total_profesorado = 0
+        total_conjunto = 0
+
         # Write data rows
         for colegio in colegios:
             writer.writerow(
@@ -924,6 +930,22 @@ class ColegioViewSet(viewsets.ModelViewSet):
                     colegio["total_conjunto"],
                 ]
             )
+            # Accumulate totals
+            total_primaria += colegio["total_primaria"]
+            total_secundaria += colegio["total_secundaria"]
+            total_profesorado += colegio["total_profesorado"]
+            total_conjunto += colegio["total_conjunto"]
+
+        # Write totals row
+        writer.writerow(
+            [
+                "Totales",
+                total_primaria,
+                total_secundaria,
+                total_profesorado,
+                total_conjunto,
+            ]
+        )
 
         return response
 
