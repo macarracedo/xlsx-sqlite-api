@@ -57,7 +57,7 @@ PREVISTAS = {
     "GALICIA": 4977,
     "BALEARES": 3431,
     "LA RIOJA": 2364,
-    "PAÍS VASCO": 24,
+    "PAÍS VASCO": 4732,
     "MELILLA": 2092,
     "CEUTA": 2090,
     "ASTURIAS": 3002,
