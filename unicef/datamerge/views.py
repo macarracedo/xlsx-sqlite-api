@@ -957,12 +957,145 @@ class ColegioViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=["get"])
+    def generate_csv_previstas_alumnado_by_comunidad(self, request, *args, **kwargs):
+        """Generate a CSV file from data stored in the database, grouped by comunidad autónoma."""
+
+        # Subqueries to get the most recent EncuestaResult for each encuesta field
+        latest_pri = (
+            EncuestaResult.objects.filter(encuesta=OuterRef("pri_sid"))
+            .order_by("-date")
+            .values("encuestas_totales")[:1]
+        )
+
+        latest_sec = (
+            EncuestaResult.objects.filter(encuesta=OuterRef("sec_sid"))
+            .order_by("-date")
+            .values("encuestas_totales")[:1]
+        )
+
+        # Annotate each Colegio with its latest results
+        colegios_qs = Colegio.objects.annotate(
+            pri_realizadas=Coalesce(
+                Subquery(latest_pri, output_field=IntegerField()), Value(0)
+            ),
+            sec_realizadas=Coalesce(
+                Subquery(latest_sec, output_field=IntegerField()), Value(0)
+            ),
+        ).annotate(
+            # Sum the latest results from the three related encuestas
+            realizadas=F("pri_realizadas")
+            + F("sec_realizadas")
+        )
+
+        # Group by comunidad_autonoma and aggregate over colegios
+        colegios = (
+            colegios_qs.values("comunidad_autonoma")
+            .annotate(centros_actuales=Count("id"), realizadas=Sum("realizadas"))
+            .values("comunidad_autonoma", "realizadas", "centros_actuales")
+        )
+
+        # Create the HttpResponse object with the appropriate CSV header.
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            'attachment; filename="previstas_alumnado_by_comunidad.csv"'
+        )
+
+        writer = csv.writer(response)
+        # Write the header row
+        writer.writerow(
+            [
+                "CCAA",
+                "Previstas",
+                "Realizadas Alumnado",
+                "Faltan",
+                "Porcentaje",
+                "Centros previstos",
+                "Centros actuales",
+                "Porcentaje1",
+            ]
+        )
+
+        # Initialize totals
+        total_previstas = 0
+        total_realizadas = 0
+        total_faltan = 0
+        total_centros_previstos = 0
+        total_centros_actuales = 0
+
+        # Write data rows
+        for colegio in colegios:
+            comunidad = colegio["comunidad_autonoma"]
+            previstas = PREVISTAS.get(comunidad, 0)
+            realizadas = colegio["realizadas"]
+            faltan = previstas - realizadas
+            porcentaje = (realizadas / previstas) * 100 if previstas > 0 else 0
+            centros_previstos = CENTROS_PREVISTOS.get(comunidad, 0)
+            centros_actuales = colegio["centros_actuales"]
+            porcentaje1 = (
+                (centros_actuales / centros_previstos) * 100
+                if centros_previstos > 0
+                else 0
+            )
+
+            writer.writerow(
+                [
+                    comunidad,
+                    previstas,
+                    realizadas,
+                    faltan,
+                    f"{porcentaje:.2f}%",
+                    centros_previstos,
+                    centros_actuales,
+                    f"{porcentaje1:.2f}%",
+                ]
+            )
+
+            # Accumulate totals
+            total_previstas += previstas
+            total_realizadas += realizadas
+            total_faltan += faltan
+            total_centros_previstos += centros_previstos
+            total_centros_actuales += centros_actuales
+
+        # Calculate total percentages
+        total_porcentaje = (
+            (total_realizadas / total_previstas) * 100 if total_previstas > 0 else 0
+        )
+        total_porcentaje1 = (
+            (total_centros_actuales / total_centros_previstos) * 100
+            if total_centros_previstos > 0
+            else 0
+        )
+
+        # Write totals row
+        writer.writerow(
+            [
+                "Totales",
+                total_previstas,
+                total_realizadas,
+                total_faltan,
+                f"{total_porcentaje:.2f}%",
+                total_centros_previstos,
+                total_centros_actuales,
+                f"{total_porcentaje1:.2f}%",
+            ]
+        )
+        response = update_ccaa_names_in_csv(
+            response, filename="previstas_alumno_by_comunidad.csv"
+        )
+        response = sort_csv_by_comunidad(
+            response, filename="previstas_alumno_by_comunidad.csv"
+        )
+        return response
+
+    @action(detail=False, methods=["get"])
     def update_only_csvs(self, request, *args, **kwargs):
         """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
         logging.info("Generating and updating CSV files to GitHub...")
 
         update_csv_completitud_by_comunidad(request)
         update_csv_previstas_by_comunidad(request)
+        update_csv_previstas_alumnado_by_comunidad(request)
         update_csv_historico_by_encuesta(request, back_days=3)
         update_csv_historico_by_encuesta(request, back_days=10)
         update_csv_historico_by_encuesta(request, back_days=30)
@@ -1000,6 +1133,18 @@ def update_csv_previstas_by_comunidad(request):
 
     return HttpResponse("previstas CSV updated successfully")
 
+@csrf_exempt
+@require_GET
+def update_csv_previstas_alumnado_by_comunidad(request):
+    
+    response = ColegioViewSet().generate_csv_previstas_alumnado_by_comunidad(request)
+
+    # Upload csv_data to github
+    csv_data = response.getvalue()
+    logging.debug(f"update_csv_previstas_alumnado_by_comunidad. csv_data: {csv_data}")
+    push_to_gh_repo(csv_data=csv_data, file_path="data/previstas_alumno_by_comunidad.csv")
+
+    return HttpResponse("previstas alumnado CSV updated successfully")
 
 @csrf_exempt
 @require_GET
