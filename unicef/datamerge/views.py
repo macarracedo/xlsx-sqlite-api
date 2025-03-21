@@ -13,6 +13,7 @@ from unicef.datamerge.serializers import (
     ColegioSerializer,
     FileUploadSerializer,
 )
+from unicef.datamerge.management.commands import update_encuestas_results
 from unicef.datamerge.utils import update_encuesta_by_sid
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -206,6 +207,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
             )
         return JsonResponse(payload)
 
+    @action(detail=False, methods=["get"])
+    def update_encuestas_results(self, request, *args, **kwargs):
+
+        # call manage.py update_encuestas_results
+        result = os.popen("python manage.py update_encuestas_results").read()
+        return Response({"detail": "Encuestas results updated", "output": result})
+
     @action(
         detail=False,
         methods=["post"],
@@ -337,10 +345,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
             sec_sid = re.search(r"sid=(\d{6})", sec_url).group(1) if sec_url else None
             pro_sid = re.search(r"sid=(\d{6})", pro_url).group(1) if pro_url else None
 
-            # Remove all letter P, D and S contained in the string from each ID
-            cid = re.sub(
-                r"[PDS]", "", cod_cid
-            )  # este se usará para el id del colegio (cid)
+            # Extract the relevant part of the cod_cid and remove extra characters and whitespace
+            cid_match = re.search(r"L2A[D]?\d{3}", cod_cid)
+            if cid_match:
+                cid = cid_match.group(0).replace("D", "")
+            else:
+                cid = cod_cid.strip()
+
             sec_sid = re.sub(r"[PDS]", "", sec_sid)
             pro_sid = re.sub(r"[PDS]", "", pro_sid)
 
@@ -753,7 +764,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=["get"])
-    def generate_csv_historico_by_encuesta(self, request, back_days=3, *args, **kwargs, ):
+    def generate_csv_historico_by_encuesta(
+        self,
+        request,
+        back_days=3,
+        *args,
+        **kwargs,
+    ):
         """Generate a CSV file with historical data for each encuesta."""
         # Get all colegios with their related encuestas
         colegios = Colegio.objects.select_related("pri_sid", "sec_sid", "pro_sid")
@@ -892,14 +909,24 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 total_profesorado=Sum("pro_realizadas"),
             )
             .annotate(
-                total_conjunto=F("total_primaria") + F("total_secundaria") + F("total_profesorado")
+                total_conjunto=F("total_primaria")
+                + F("total_secundaria")
+                + F("total_profesorado")
             )
-            .values("comunidad_autonoma", "total_primaria", "total_secundaria", "total_profesorado", "total_conjunto")
+            .values(
+                "comunidad_autonoma",
+                "total_primaria",
+                "total_secundaria",
+                "total_profesorado",
+                "total_conjunto",
+            )
         )
 
         # Create the HttpResponse object with the appropriate CSV header.
         response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="tipologia_by_comunidad.csv"'
+        response["Content-Disposition"] = (
+            'attachment; filename="tipologia_by_comunidad.csv"'
+        )
 
         writer = csv.writer(response)
         # Write the header row
@@ -946,7 +973,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 total_conjunto,
             ]
         )
-        
+
         response = update_ccaa_names_in_csv(
             response, filename="tipologia_by_comunidad.csv"
         )
@@ -1133,36 +1160,45 @@ def update_csv_previstas_by_comunidad(request):
 
     return HttpResponse("previstas CSV updated successfully")
 
+
 @csrf_exempt
 @require_GET
 def update_csv_previstas_alumnado_by_comunidad(request):
-    
+
     response = ColegioViewSet().generate_csv_previstas_alumnado_by_comunidad(request)
 
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_previstas_alumnado_by_comunidad. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/previstas_alumno_by_comunidad.csv")
+    push_to_gh_repo(
+        csv_data=csv_data, file_path="data/previstas_alumno_by_comunidad.csv"
+    )
 
     return HttpResponse("previstas alumnado CSV updated successfully")
+
 
 @csrf_exempt
 @require_GET
 def update_csv_historico_by_encuesta(request, back_days):
 
-    response = ColegioViewSet().generate_csv_historico_by_encuesta(request, back_days=back_days)
+    response = ColegioViewSet().generate_csv_historico_by_encuesta(
+        request, back_days=back_days
+    )
 
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_historico_by_encuesta. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path=f"data/historico_{back_days}_by_encuesta.csv")
+    push_to_gh_repo(
+        csv_data=csv_data, file_path=f"data/historico_{back_days}_by_encuesta.csv"
+    )
 
     return HttpResponse("historico CSV updated successfully")
+
 
 @csrf_exempt
 @require_GET
 def update_csv_tipologia_by_ccaa(request):
-    
+
     response = ColegioViewSet().generate_csv_tipologia_by_ccaa(request)
 
     # Upload csv_data to github
