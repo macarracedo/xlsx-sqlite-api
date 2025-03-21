@@ -2,14 +2,7 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from unicef.datamerge.models import Encuesta, EncuestaResult
-from unicef.datamerge.views import (
-    update_csv_completitud_by_comunidad,
-    update_csv_previstas_by_comunidad,
-    update_csv_historico_by_encuesta,
-    update_csv_datetime_last_update,
-    update_csv_tipologia_by_ccaa,
-    update_csv_previstas_alumnado_by_comunidad
-)
+
 from django.test import RequestFactory
 import requests
 import logging
@@ -20,6 +13,7 @@ INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
 INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 
 logging.basicConfig(level=logging.INFO)
+
 
 def update_or_create_encuesta_result(encuesta, data_externa):
     # Set timezone to Madrid
@@ -35,21 +29,30 @@ def update_or_create_encuesta_result(encuesta, data_externa):
         date__range=(today_start, today_end),
         defaults={
             "date": now,
-            "encuestas_cubiertas": data_externa.get("Encuesta", {}).get("Encuestas cubiertas"),
-            "encuestas_incompletas": data_externa.get("Encuesta", {}).get("Encuestas incompletas"),
-            "encuestas_totales": data_externa.get("Encuesta", {}).get("Encuestas totales"),
-        }
+            "encuestas_cubiertas": data_externa.get("Encuesta", {}).get(
+                "Encuestas cubiertas"
+            ),
+            "encuestas_incompletas": data_externa.get("Encuesta", {}).get(
+                "Encuestas incompletas"
+            ),
+            "encuestas_totales": data_externa.get("Encuesta", {}).get(
+                "Encuestas totales"
+            ),
+        },
     )
 
     if created:
         logging.info(f"Created new EncuestaResult for {encuesta.sid} on {now.date()}")
     else:
-        logging.info(f"Updated existing EncuestaResult for {encuesta.sid} on {now.date()}")
+        logging.info(
+            f"Updated existing EncuestaResult for {encuesta.sid} on {now.date()}"
+        )
 
     return encuesta_result
 
+
 class Command(BaseCommand):
-    help = 'Update Encuesta results daily'
+    help = "Update Encuesta results daily"
 
     def handle(self, *args, **kwargs):
         encuestas = Encuesta.objects.all()
@@ -58,8 +61,14 @@ class Command(BaseCommand):
         logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
         for encuesta in encuestas:
             encuesta_sid = encuesta.sid
-            self.stdout.write(self.style.SUCCESS(f'Updating Encuesta results for {encuesta_sid}'))
-            payload = {"sid": encuesta_sid, "usr": INTERNAL_LS_USER, "pass": INTERNAL_LS_PASS}
+            self.stdout.write(
+                self.style.SUCCESS(f"Updating Encuesta results for {encuesta_sid}")
+            )
+            payload = {
+                "sid": encuesta_sid,
+                "usr": INTERNAL_LS_USER,
+                "pass": INTERNAL_LS_PASS,
+            }
 
             try:
                 # Se realiza la petición POST al servicio externo
@@ -76,18 +85,35 @@ class Command(BaseCommand):
                 update_or_create_encuesta_result(encuesta, data_externa)
 
             except requests.RequestException as ex:
-                self.stderr.write(self.style.ERROR(f"Error en la petición al servicio externo, {str(ex)}"))
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Error en la petición al servicio externo, {str(ex)}"
+                    )
+                )
             except ValueError as ex:
-                self.stderr.write(self.style.ERROR(f"Respuesta JSON inválida, {str(ex)}"))
+                self.stderr.write(
+                    self.style.ERROR(f"Respuesta JSON inválida, {str(ex)}")
+                )
             except Encuesta.DoesNotExist:
                 self.stderr.write(self.style.ERROR(f"Encuesta not found, {str(ex)}"))
 
-        self.stdout.write(self.style.SUCCESS('Successfully updated Encuesta results'))
-        
+        self.stdout.write(self.style.SUCCESS("Successfully updated Encuesta results"))
+
         # Generate and update CSV files
-        self.stdout.write(self.style.SUCCESS('Generating and updating CSV files to GitHub...'))
+        self.stdout.write(
+            self.style.SUCCESS("Generating and updating CSV files to GitHub...")
+        )
         factory = RequestFactory()
-        request = factory.get('/')
+        request = factory.get("/")
+
+        from unicef.datamerge.views import (
+            update_csv_completitud_by_comunidad,
+            update_csv_previstas_by_comunidad,
+            update_csv_historico_by_encuesta,
+            update_csv_datetime_last_update,
+            update_csv_tipologia_by_ccaa,
+            update_csv_previstas_alumnado_by_comunidad,
+        )
 
         update_csv_completitud_by_comunidad(request)
         update_csv_previstas_by_comunidad(request)
@@ -98,4 +124,6 @@ class Command(BaseCommand):
         update_csv_tipologia_by_ccaa(request)
         update_csv_datetime_last_update(request)
 
-        self.stdout.write(self.style.SUCCESS('Successfully generated and updated CSV files in GitHub'))        
+        self.stdout.write(
+            self.style.SUCCESS("Successfully generated and updated CSV files in GitHub")
+        )
