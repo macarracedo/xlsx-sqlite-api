@@ -13,6 +13,7 @@ from unicef.datamerge.serializers import (
     ColegioSerializer,
     FileUploadSerializer,
 )
+from unicef.datamerge.management.commands import update_encuestas_results
 from unicef.datamerge.utils import update_encuesta_by_sid
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -205,6 +206,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 status=500,
             )
         return JsonResponse(payload)
+
+    @action(detail=False, methods=["get"])
+    def update_encuestas_results(self, request, *args, **kwargs):
+
+        # call manage.py update_encuestas_results
+        result = os.popen("python manage.py update_encuestas_results").read()
+        return Response({"detail": "Encuestas results updated", "output": result})
 
     @action(
         detail=False,
