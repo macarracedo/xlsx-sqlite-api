@@ -11,6 +11,7 @@ import os
 API_LIMESURVEY = os.getenv("API_LIMESURVEY")
 INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
 INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -88,6 +89,7 @@ class Command(BaseCommand):
                 logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
                 logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
                 logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
+                logging.info(f"GITHUB_TOKEN: {GITHUB_TOKEN}")
                 self.stderr.write(
                     self.style.ERROR(
                         f"Error en la petición al servicio externo, {str(ex)}"

@@ -42,6 +42,10 @@ from datetime import datetime
 import pytz
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+API_LIMESURVEY = os.getenv("API_LIMESURVEY")
+INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
+INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
+
 # Hardcoded values for previstas and centros_previstos
 PREVISTAS = {
     "ANDALUCÍA": 14271,
@@ -1309,7 +1313,9 @@ def push_to_gh_repo(
     """
     # GitHub repository and file details
     repo_name = "macarracedo/xlsx-sqlite-api"
-
+    logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+    logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+    logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(repo_name)
 
