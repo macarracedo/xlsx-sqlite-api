@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from rest_framework.decorators import action
 from django.http import JsonResponse, HttpResponse
+from django.test import RequestFactory
 from unicef.datamerge.serializers import (
     GroupSerializer,
     UserSerializer,
@@ -14,7 +15,11 @@ from unicef.datamerge.serializers import (
     FileUploadSerializer,
 )
 from unicef.datamerge.management.commands import update_encuestas_results
-from unicef.datamerge.utils import update_encuesta_by_sid
+from unicef.datamerge.utils import (
+    update_encuesta_by_sid,
+    update_or_create_encuesta_result,
+    push_to_gh_repo,
+)
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from unicef.datamerge.models import Encuesta, Colegio, EncuestaResult
@@ -1135,6 +1140,76 @@ class ColegioViewSet(viewsets.ModelViewSet):
 
         logging.info("Successfully generated and updated CSV files in GitHub")
         return HttpResponse("CSV files updated successfully")
+
+
+@csrf_exempt
+@require_GET
+def update_encuestas_results(request):
+    encuestas = Encuesta.objects.all()
+    logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+    logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+    logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
+    for encuesta in encuestas:
+        encuesta_sid = encuesta.sid
+        logging.info(f"Updating Encuesta results for {encuesta_sid}")
+        payload = {
+            "sid": encuesta_sid,
+            "usr": INTERNAL_LS_USER,
+            "pass": INTERNAL_LS_PASS,
+        }
+
+        try:
+            # Se realiza la petición POST al servicio externo
+            response = requests.post(API_LIMESURVEY, data=payload, verify=False)
+            logging.debug(f"UpdateEncuesta. response: {response}")
+            response.raise_for_status()  # Lanza excepción en caso de error HTTP
+            data_externa = response.json()  # Se decodifica la respuesta JSON
+            logging.debug(f"UpdateEncuesta. data_externa:{data_externa}")
+
+            # Fetch the Encuesta object
+            encuesta = Encuesta.objects.get(sid=encuesta_sid)
+
+            # Update or create the daily result
+            update_or_create_encuesta_result(encuesta, data_externa)
+
+        except requests.RequestException as ex:
+            logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+            logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+            logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
+            logging.info(f"GITHUB_TOKEN: {GITHUB_TOKEN}")
+            logging.error(f"Error en la petición al servicio externo, {str(ex)}")
+        except ValueError as ex:
+            logging.error(f"Respuesta JSON inválida, {str(ex)}")
+        except Encuesta.DoesNotExist:
+            logging.error(f"Encuesta not found, {str(ex)}")
+
+    logging.info("Successfully updated Encuesta results")
+
+    # Generate and update CSV files
+    logging.info("Generating and updating CSV files to GitHub...")
+    factory = RequestFactory()
+    request = factory.get("/")
+
+    from unicef.datamerge.views import (
+        update_csv_completitud_by_comunidad,
+        update_csv_previstas_by_comunidad,
+        update_csv_historico_by_encuesta,
+        update_csv_datetime_last_update,
+        update_csv_tipologia_by_ccaa,
+        update_csv_previstas_alumnado_by_comunidad,
+    )
+
+    update_csv_completitud_by_comunidad(request)
+    update_csv_previstas_by_comunidad(request)
+    update_csv_previstas_alumnado_by_comunidad(request)
+    update_csv_historico_by_encuesta(request, back_days=3)
+    update_csv_historico_by_encuesta(request, back_days=10)
+    update_csv_historico_by_encuesta(request, back_days=30)
+    update_csv_tipologia_by_ccaa(request)
+    update_csv_datetime_last_update(request)
+
+    logging.info("Successfully generated and updated CSV files in GitHub")
+    return HttpResponse("Encuesta results and CSV files updated successfully")
 
 
 @csrf_exempt

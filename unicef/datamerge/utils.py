@@ -9,10 +9,13 @@ from .models import (
 )  # Adjust the import path according to your project structure
 from dotenv import load_dotenv
 import os
+from github import Github
 
 API_LIMESURVEY = os.getenv("API_LIMESURVEY")
 INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
 INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -105,3 +108,33 @@ def update_or_create_encuesta_result(encuesta, data_externa):
         )
 
     return encuesta_result
+
+
+def push_to_gh_repo(
+    csv_data,
+    file_path="data/test/colegios_data.csv",
+    commit_message="[BOT] Update colegios data CSV",
+):
+    """This method pushes csv data to a GitHub repository.
+
+    Args:
+        csv_data (str): The CSV data to be pushed.
+    """
+    # GitHub repository and file details
+    repo_name = "macarracedo/xlsx-sqlite-api"
+    logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+    logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+    logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
+    g = Github(GITHUB_TOKEN)
+    repo = g.get_repo(repo_name)
+
+    print(f"github token: {GITHUB_TOKEN}")
+    print(f"repo: {repo}")
+
+    try:
+        # Get the file if it exists
+        contents = repo.get_contents(file_path)
+        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
+    except Exception as e:
+        # If the file does not exist, create it
+        repo.create_file(file_path, commit_message, csv_data)
