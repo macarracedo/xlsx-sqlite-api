@@ -111,6 +111,7 @@ def update_or_create_encuesta_result(encuesta, data_externa):
 
 
 def push_to_gh_repo(
+    github_token,
     csv_data,
     file_path="data/test/colegios_data.csv",
     commit_message="[BOT] Update colegios data CSV",
@@ -122,13 +123,10 @@ def push_to_gh_repo(
     """
     # GitHub repository and file details
     repo_name = "macarracedo/xlsx-sqlite-api"
-    logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
-    logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
-    logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
-    g = Github(GITHUB_TOKEN)
+    g = Github(github_token)
     repo = g.get_repo(repo_name)
 
-    print(f"github token: {GITHUB_TOKEN}")
+    print(f"github token: {github_token}")
     print(f"repo: {repo}")
 
     try:

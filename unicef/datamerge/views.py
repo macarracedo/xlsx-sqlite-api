@@ -1228,7 +1228,11 @@ def update_csv_completitud_by_comunidad(request):
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_completitud_by_comunidad. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/completitud_by_comunidad.csv")
+    push_to_gh_repo(
+        github_token=GITHUB_TOKEN,
+        csv_data=csv_data,
+        file_path="data/completitud_by_comunidad.csv",
+    )
 
     return HttpResponse("completitud CSV updated successfully")
 
@@ -1242,7 +1246,11 @@ def update_csv_previstas_by_comunidad(request):
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_previstas_by_comunidad. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/previstas_by_comunidad.csv")
+    push_to_gh_repo(
+        github_token=GITHUB_TOKEN,
+        csv_data=csv_data,
+        file_path="data/previstas_by_comunidad.csv",
+    )
 
     return HttpResponse("previstas CSV updated successfully")
 
@@ -1257,7 +1265,9 @@ def update_csv_previstas_alumnado_by_comunidad(request):
     csv_data = response.getvalue()
     logging.debug(f"update_csv_previstas_alumnado_by_comunidad. csv_data: {csv_data}")
     push_to_gh_repo(
-        csv_data=csv_data, file_path="data/previstas_alumno_by_comunidad.csv"
+        github_token=GITHUB_TOKEN,
+        csv_data=csv_data,
+        file_path="data/previstas_alumno_by_comunidad.csv",
     )
 
     return HttpResponse("previstas alumnado CSV updated successfully")
@@ -1275,7 +1285,9 @@ def update_csv_historico_by_encuesta(request, back_days):
     csv_data = response.getvalue()
     logging.debug(f"update_csv_historico_by_encuesta. csv_data: {csv_data}")
     push_to_gh_repo(
-        csv_data=csv_data, file_path=f"data/historico_{back_days}_by_encuesta.csv"
+        github_token=GITHUB_TOKEN,
+        csv_data=csv_data,
+        file_path=f"data/historico_{back_days}_by_encuesta.csv",
     )
 
     return HttpResponse("historico CSV updated successfully")
@@ -1290,7 +1302,11 @@ def update_csv_tipologia_by_ccaa(request):
     # Upload csv_data to github
     csv_data = response.getvalue()
     logging.debug(f"update_csv_tipologia_by_ccaa. csv_data: {csv_data}")
-    push_to_gh_repo(csv_data=csv_data, file_path="data/tipologia_by_comunidad.csv")
+    push_to_gh_repo(
+        github_token=GITHUB_TOKEN,
+        csv_data=csv_data,
+        file_path="data/tipologia_by_comunidad.csv",
+    )
 
     return HttpResponse("tipologia CSV updated successfully")
 
@@ -1303,7 +1319,9 @@ def update_csv_datetime_last_update(request):
     logging.debug(f"update_csv_datetime_last_update. current_time: {current_time}")
     # create simple csv with current time
     csv_data = f"last_update\n{current_time}"
-    push_to_gh_repo(csv_data=csv_data, file_path="data/last_update.csv")
+    push_to_gh_repo(
+        github_token=GITHUB_TOKEN, csv_data=csv_data, file_path="data/last_update.csv"
+    )
 
     return HttpResponse("last update CSV updated successfully")
 
