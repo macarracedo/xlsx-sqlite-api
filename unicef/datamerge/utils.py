@@ -69,3 +69,39 @@ def update_encuesta_by_sid(sid, check_results=True):
         raise Exception(f"Respuesta JSON inválida, {str(ex)}")
     except Encuesta.DoesNotExist:
         raise Exception(f"Encuesta not found with SID: {sid}")
+
+
+def update_or_create_encuesta_result(encuesta, data_externa):
+    # Set timezone to Madrid
+    timezone.activate("Europe/Madrid")
+    madrid_tz = timezone.get_current_timezone()
+    now = timezone.localtime(timezone.now(), madrid_tz)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Check if there is already an EncuestaResult for today
+    encuesta_result, created = EncuestaResult.objects.update_or_create(
+        encuesta=encuesta,
+        date__range=(today_start, today_end),
+        defaults={
+            "date": now,
+            "encuestas_cubiertas": data_externa.get("Encuesta", {}).get(
+                "Encuestas cubiertas"
+            ),
+            "encuestas_incompletas": data_externa.get("Encuesta", {}).get(
+                "Encuestas incompletas"
+            ),
+            "encuestas_totales": data_externa.get("Encuesta", {}).get(
+                "Encuestas totales"
+            ),
+        },
+    )
+
+    if created:
+        logging.info(f"Created new EncuestaResult for {encuesta.sid} on {now.date()}")
+    else:
+        logging.info(
+            f"Updated existing EncuestaResult for {encuesta.sid} on {now.date()}"
+        )
+
+    return encuesta_result
