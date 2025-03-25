@@ -85,6 +85,9 @@ class Command(BaseCommand):
                 update_or_create_encuesta_result(encuesta, data_externa)
 
             except requests.RequestException as ex:
+                logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
+                logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
+                logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
                 self.stderr.write(
                     self.style.ERROR(
                         f"Error en la petición al servicio externo, {str(ex)}"

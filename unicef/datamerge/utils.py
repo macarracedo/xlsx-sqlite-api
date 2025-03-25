@@ -3,15 +3,20 @@ import requests
 import logging
 from django.utils import timezone
 from django.http import HttpRequest
-from .models import Encuesta, EncuestaResult  # Adjust the import path according to your project structure
+from .models import (
+    Encuesta,
+    EncuestaResult,
+)  # Adjust the import path according to your project structure
 from dotenv import load_dotenv
+import os
 
-API_LIMESURVEY = "https://unicef.ccii.es//cciiAdmin/consultaDatosEncuesta.php"
-INTERNAL_LS_USER = "ccii"
-INTERNAL_LS_PASS = "ccii2024"
+API_LIMESURVEY = os.getenv("API_LIMESURVEY")
+INTERNAL_LS_USER = os.getenv("INTERNAL_LS_USER")
+INTERNAL_LS_PASS = os.getenv("INTERNAL_LS_PASS")
 logging.basicConfig(level=logging.DEBUG)
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
+
 
 def update_encuesta_by_sid(sid, check_results=True):
     logging.debug(f"update_encuesta_by_sid. sid: {sid}")
@@ -44,12 +49,18 @@ def update_encuesta_by_sid(sid, check_results=True):
                 encuesta=encuesta,
                 date=now,
                 defaults={
-                    "encuestas_cubiertas": data_externa["Encuesta"]["Encuestas cubiertas"],
-                    "encuestas_incompletas": data_externa["Encuesta"]["Encuestas incompletas"],
+                    "encuestas_cubiertas": data_externa["Encuesta"][
+                        "Encuestas cubiertas"
+                    ],
+                    "encuestas_incompletas": data_externa["Encuesta"][
+                        "Encuestas incompletas"
+                    ],
                     "encuestas_totales": data_externa["Encuesta"]["Encuestas totales"],
-                }
+                },
             )
-        logging.debug(f"update_encuesta_by_sid. encuesta with sid {encuesta.sid} updated")
+        logging.debug(
+            f"update_encuesta_by_sid. encuesta with sid {encuesta.sid} updated"
+        )
         return encuesta
 
     except requests.RequestException as ex:
