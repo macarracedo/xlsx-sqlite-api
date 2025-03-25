@@ -1,4 +1,5 @@
 import requests
+import concurrent.futures
 from django.contrib.auth.models import Group, User
 from rest_framework import permissions, viewsets, status, views
 from django.views.decorators.csrf import csrf_exempt
@@ -1149,7 +1150,8 @@ def update_encuestas_results(request):
     logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
     logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
     logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
-    for encuesta in encuestas:
+
+    def update_encuesta(encuesta):
         encuesta_sid = encuesta.sid
         logging.info(f"Updating Encuesta results for {encuesta_sid}")
         payload = {
@@ -1182,6 +1184,11 @@ def update_encuestas_results(request):
             logging.error(f"Respuesta JSON inválida, {str(ex)}")
         except Encuesta.DoesNotExist:
             logging.error(f"Encuesta not found, {str(ex)}")
+
+    # Use ThreadPoolExecutor to run tasks concurrently
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(update_encuesta, encuesta) for encuesta in encuestas]
+        concurrent.futures.wait(futures)
 
     logging.info("Successfully updated Encuesta results")
 
