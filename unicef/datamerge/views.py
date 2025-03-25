@@ -1374,33 +1374,3 @@ def sort_csv_by_comunidad(response, filename="sorted_colegios_data.csv"):
     writer.writerows(sorted_data_rows)
 
     return sorted_response
-
-
-def push_to_gh_repo(
-    csv_data,
-    file_path="data/test/colegios_data.csv",
-    commit_message="[BOT] Update colegios data CSV",
-):
-    """This method pushes csv data to a GitHub repository.
-
-    Args:
-        csv_data (str): The CSV data to be pushed.
-    """
-    # GitHub repository and file details
-    repo_name = "macarracedo/xlsx-sqlite-api"
-    logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
-    logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
-    logging.info(f"INTERNAL_LS_PASS: {INTERNAL_LS_PASS}")
-    g = Github(GITHUB_TOKEN)
-    repo = g.get_repo(repo_name)
-
-    print(f"github token: {GITHUB_TOKEN}")
-    print(f"repo: {repo}")
-
-    try:
-        # Get the file if it exists
-        contents = repo.get_contents(file_path)
-        repo.update_file(contents.path, commit_message, csv_data, contents.sha)
-    except Exception as e:
-        # If the file does not exist, create it
-        repo.create_file(file_path, commit_message, csv_data)
