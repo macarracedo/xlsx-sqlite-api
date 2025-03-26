@@ -1129,7 +1129,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
     def update_only_csvs(self, request, *args, **kwargs):
         """Generate and update CSV files and upload them to GitHub without querying LimeSurvey or updating survey results."""
         logging.info("Generating and updating CSV files to GitHub...")
-
+        start_time = datetime.now()
         update_csv_completitud_by_comunidad(request)
         update_csv_previstas_by_comunidad(request)
         update_csv_previstas_alumnado_by_comunidad(request)
@@ -1137,7 +1137,7 @@ class ColegioViewSet(viewsets.ModelViewSet):
         update_csv_historico_by_encuesta(request, back_days=10)
         update_csv_historico_by_encuesta(request, back_days=30)
         update_csv_tipologia_by_ccaa(request)
-        update_csv_datetime_last_update(request)
+        update_csv_datetime_last_update(request, start_time=start_time)
 
         logging.info("Successfully generated and updated CSV files in GitHub")
         return HttpResponse("CSV files updated successfully")
@@ -1146,6 +1146,8 @@ class ColegioViewSet(viewsets.ModelViewSet):
 @csrf_exempt
 @require_GET
 def update_encuestas_results(request):
+    # save current timestamp so later we can calculate how long it took to update the results
+    start_time = datetime.now()
     encuestas = Encuesta.objects.all()
     logging.info(f"API_LIMESURVEY: {API_LIMESURVEY}")
     logging.info(f"INTERNAL_LS_USER: {INTERNAL_LS_USER}")
@@ -1213,7 +1215,7 @@ def update_encuestas_results(request):
     update_csv_historico_by_encuesta(request, back_days=10)
     update_csv_historico_by_encuesta(request, back_days=30)
     update_csv_tipologia_by_ccaa(request)
-    update_csv_datetime_last_update(request)
+    update_csv_datetime_last_update(request, start_time)
 
     logging.info("Successfully generated and updated CSV files in GitHub")
     return HttpResponse("Encuesta results and CSV files updated successfully")
@@ -1313,12 +1315,18 @@ def update_csv_tipologia_by_ccaa(request):
 
 @csrf_exempt
 @require_GET
-def update_csv_datetime_last_update(request):
+def update_csv_datetime_last_update(request, start_time=None):
+    if start_time:
+        end_time = datetime.now()
+        elapsed_time = end_time - start_time
+        logging.debug(f"update_csv_datetime_last_update. elapsed_time: {elapsed_time}")
     now = datetime.now(pytz.timezone("Europe/Madrid"))
     current_time = now.strftime("%Y-%m-%d %H:%M:%S")
     logging.debug(f"update_csv_datetime_last_update. current_time: {current_time}")
     # create simple csv with current time
-    csv_data = f"last_update\n{current_time}"
+    csv_data = (
+        f"last_update,elapsed_time\n{current_time},{elapsed_time if start_time else ''}"
+    )
     push_to_gh_repo(
         github_token=GITHUB_TOKEN, csv_data=csv_data, file_path="data/last_update.csv"
     )
