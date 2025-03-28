@@ -335,6 +335,13 @@ class ColegioViewSet(viewsets.ModelViewSet):
             _type_: _description_
 
         """
+        # Dictionary of words to translate
+        translations_dict = {
+            "ANDALUCIA": "ANDALUCÍA",
+            "CASTILLA LEON": "CASTILLA LEÓN",
+            "PAIS VASCO": "PAÍS VASCO",
+        }
+
         file = request.FILES.get("cocina_csv")
         if not file:
             return Response(
@@ -348,6 +355,11 @@ class ColegioViewSet(viewsets.ModelViewSet):
         for row in reader:
             nombre = row["CENTRO"]
             comunidad_autonoma = row["CA"]
+            # Apply translation if found in our dictionary
+            comunidad_autonoma = translations_dict.get(
+                comunidad_autonoma, comunidad_autonoma
+            )
+
             cod_cid = row["Codigo interno"]
             pri_url = row["PRIMARIA"]
             sec_url = row["SECUNDARIA"]
@@ -364,8 +376,8 @@ class ColegioViewSet(viewsets.ModelViewSet):
             else:
                 cid = cod_cid.strip()
 
-            sec_sid = re.sub(r"[PDS]", "", sec_sid)
-            pro_sid = re.sub(r"[PDS]", "", pro_sid)
+            sec_sid = re.sub(r"[PDS]", "", sec_sid) if sec_sid else sec_sid
+            pro_sid = re.sub(r"[PDS]", "", pro_sid) if pro_sid else pro_sid
 
             if not all(
                 [
