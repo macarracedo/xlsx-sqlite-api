@@ -34,6 +34,8 @@ from django.db.models import (
     OuterRef,
     Subquery,
     IntegerField,
+    Case,
+    When,
 )
 from django.db.models.functions import Coalesce
 import logging
@@ -498,43 +500,65 @@ class ColegioViewSet(viewsets.ModelViewSet):
         )
 
         # Annotate each Colegio with its most recent results per encuesta field.
-        colegios_qs = Colegio.objects.annotate(
-            pri_totales=Coalesce(
-                Subquery(latest_pri_totales, output_field=IntegerField()), Value(0)
-            ),
-            sec_totales=Coalesce(
-                Subquery(latest_sec_totales, output_field=IntegerField()), Value(0)
-            ),
-            pro_totales=Coalesce(
-                Subquery(latest_pro_totales, output_field=IntegerField()), Value(0)
-            ),
-            pri_cubiertas=Coalesce(
-                Subquery(latest_pri_cubiertas, output_field=IntegerField()), Value(0)
-            ),
-            sec_cubiertas=Coalesce(
-                Subquery(latest_sec_cubiertas, output_field=IntegerField()), Value(0)
-            ),
-            pro_cubiertas=Coalesce(
-                Subquery(latest_pro_cubiertas, output_field=IntegerField()), Value(0)
-            ),
-            pri_incompletas=Coalesce(
-                Subquery(latest_pri_incompletas, output_field=IntegerField()), Value(0)
-            ),
-            sec_incompletas=Coalesce(
-                Subquery(latest_sec_incompletas, output_field=IntegerField()), Value(0)
-            ),
-            pro_incompletas=Coalesce(
-                Subquery(latest_pro_incompletas, output_field=IntegerField()), Value(0)
-            ),
-        ).annotate(
-            # Sum the values from each encuesta relationship
-            encuestas_totales=F("pri_totales") + F("sec_totales") + F("pro_totales"),
-            encuestas_cubiertas=F("pri_cubiertas")
-            + F("sec_cubiertas")
-            + F("pro_cubiertas"),
-            encuestas_incompletas=F("pri_incompletas")
-            + F("sec_incompletas")
-            + F("pro_incompletas"),
+        colegios_qs = (
+            Colegio.objects.annotate(
+                pri_totales=Coalesce(
+                    Subquery(latest_pri_totales, output_field=IntegerField()), Value(0)
+                ),
+                sec_totales=Coalesce(
+                    Subquery(latest_sec_totales, output_field=IntegerField()), Value(0)
+                ),
+                pro_totales=Coalesce(
+                    Subquery(latest_pro_totales, output_field=IntegerField()), Value(0)
+                ),
+                pri_cubiertas=Coalesce(
+                    Subquery(latest_pri_cubiertas, output_field=IntegerField()),
+                    Value(0),
+                ),
+                sec_cubiertas=Coalesce(
+                    Subquery(latest_sec_cubiertas, output_field=IntegerField()),
+                    Value(0),
+                ),
+                pro_cubiertas=Coalesce(
+                    Subquery(latest_pro_cubiertas, output_field=IntegerField()),
+                    Value(0),
+                ),
+                pri_incompletas=Coalesce(
+                    Subquery(latest_pri_incompletas, output_field=IntegerField()),
+                    Value(0),
+                ),
+                sec_incompletas=Coalesce(
+                    Subquery(latest_sec_incompletas, output_field=IntegerField()),
+                    Value(0),
+                ),
+                pro_incompletas=Coalesce(
+                    Subquery(latest_pro_incompletas, output_field=IntegerField()),
+                    Value(0),
+                ),
+            )
+            .annotate(
+                # Sum the values from each encuesta relationship
+                encuestas_totales=F("pri_totales")
+                + F("sec_totales")
+                + F("pro_totales"),
+                encuestas_cubiertas=F("pri_cubiertas")
+                + F("sec_cubiertas")
+                + F("pro_cubiertas"),
+                encuestas_incompletas=F("pri_incompletas")
+                + F("sec_incompletas")
+                + F("pro_incompletas"),
+            )
+            .annotate(
+                # Calculate percentage safely
+                porcentaje=Case(
+                    When(encuestas_totales=0, then=Value(0.0)),
+                    default=ExpressionWrapper(
+                        F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                        output_field=FloatField(),
+                    ),
+                    output_field=FloatField(),
+                )
+            )
         )
 
         # Group the data by comunidad_autonoma.
@@ -547,8 +571,12 @@ class ColegioViewSet(viewsets.ModelViewSet):
                 encuestas_incompletas=Sum("encuestas_incompletas"),
             )
             .annotate(
-                porcentaje=ExpressionWrapper(
-                    F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                porcentaje=Case(
+                    When(encuestas_totales=0, then=Value(0.0)),
+                    default=ExpressionWrapper(
+                        F("encuestas_cubiertas") * 100.0 / F("encuestas_totales"),
+                        output_field=FloatField(),
+                    ),
                     output_field=FloatField(),
                 )
             )
