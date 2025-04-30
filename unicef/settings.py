@@ -96,7 +96,7 @@ def get_database_config():
                 "NAME": "unicef",
                 "USER": "postgres",
                 "PASSWORD": "postgres",
-                "HOST": "10.10.10.129",
+                "HOST": "10.10.10.115",
                 "PORT": "5432",
             }
         }
